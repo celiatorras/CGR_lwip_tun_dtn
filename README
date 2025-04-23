@@ -7,6 +7,13 @@ sudo ip -6 addr add fd00::1/64 dev tun0
 sudo ip link set dev tun0 up
 ```
 
+```bash 
+sudo ip tuntap add dev tun0 mode tun
+sudo ip addr add 10.0.0.1/24 dev tun0
+sudo ip -6 addr add fd00:44::1/64 dev tun0
+sudo ip link set dev tun0 up
+```
+
 ## COMPILING AND RUNNING THE PROJECT
 
 ```bash     
@@ -51,13 +58,3 @@ To see the options that you can set, open lwip/src/include/lwip/opt.h. This file
 
 As described, a lwipopts.h file must be created for each lwIP project, specifying the features that are needed or not needed.
 The opt.h, containing all possible features and parameters to lwIP can be found, as mentioned under lwip/src/include/lwip/opt.h.
-
-## CURRENT PROGRESS OF THIS IMPLEMENTATION
-
-The project currently reads incoming IP packets from the TUN interface, passes them to lwIP for processing and sends any outgoing responses back through the same TUN interface, effectively creating a user-space network stack.
-
-The Code enables a dual stack running IPv4 and IPv6 alike.
-
-## TODO
-
-- [ ] 
