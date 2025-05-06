@@ -2,14 +2,12 @@
 
 ```bash     
 sudo ip tuntap add dev tun0 mode tun
-sudo ip addr add 10.0.0.1/24 dev tun0
 sudo ip -6 addr add fd00::1/64 dev tun0
 sudo ip link set dev tun0 up
 ```
 
 ```bash 
 sudo ip tuntap add dev tun0 mode tun
-sudo ip addr add 10.0.0.1/24 dev tun0
 sudo ip -6 addr add fd00:44::1/64 dev tun0
 sudo ip link set dev tun0 up
 ```
