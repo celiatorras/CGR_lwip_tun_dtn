@@ -412,13 +412,22 @@ ip6_forward(struct pbuf *p, struct ip6_hdr *iphdr, struct netif *inp)
     return;
   }
 #endif /* LWIP_IPV6_SCOPES */
-  /* Do not forward packets onto the same network interface on which
-   * they arrived. */
-  if (netif == inp) {
-    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: not bouncing packets back on incoming interface.\n"));
+
+// MODIFICATION THESIS
+/* Do not forward packets onto the same network interface on which
+ * they arrived, unless specifically allowed (e.g., for TUN/TAP interfaces
+ * where the stack acts as a router on a single logical interface to the kernel). */
+ if (netif == inp) {
+  #if IP_FORWARD_ALLOW_TX_ON_RX_NETIF
+    /* Allowed to forward on the same interface */
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: ALLOWING packet to be sent on same interface as input (netif == inp).\n"));
+  #else
+    /* Original behavior: Disallow */
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: not bouncing packets back on incoming interface (netif == inp).\n"));
     IP6_STATS_INC(ip6.rterr);
     IP6_STATS_INC(ip6.drop);
     return;
+  #endif /* IP_FORWARD_ALLOW_TX_ON_RX_NETIF */
   }
 
   /* decrement HL */

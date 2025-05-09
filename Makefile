@@ -6,7 +6,8 @@ CFLAGS = -Wall \
 	-I./port/include \
 	-I./include \
 	-Ilwip/include \
-	-Ilwip/src/include
+	-Ilwip/src/include \
+	-Ilwip/contrib/addons/ipv6_static_routing
 
 LWIP_SRC = \
 	lwip/src/core/mem.c \
@@ -25,7 +26,8 @@ LWIP_SRC = \
 	lwip/src/core/ipv6/ip6_addr.c \
 	lwip/src/core/ipv6/nd6.c \
 	lwip/src/core/ipv6/mld6.c \
-	lwip/src/core/ipv6/ip6_frag.c 
+	lwip/src/core/ipv6/ip6_frag.c \
+	lwip/contrib/addons/ipv6_static_routing/ip6_route_table.c
 
 APP_SRC = \
     src/main.c \

@@ -12,6 +12,7 @@
 #include <stdbool.h> 
 
 #define TARGET_DTN_FORWARD_ADDR "fd00:44::2"
+#define IP_TO_IGNORE_LOGGING "FD17:625C:F037:2::3" 
 
 DTN_Controller* dtn_controller_create(DTN_Module* parent) {
     DTN_Controller* controller = (DTN_Controller*)malloc(sizeof(DTN_Controller));
@@ -52,35 +53,73 @@ void dtn_controller_process_incoming(DTN_Controller* controller, struct pbuf *p,
     memcpy(&temp_src_addr, &ip6hdr->src, sizeof(ip6_addr_t));
     memcpy(&temp_dest_addr, &ip6hdr->dest, sizeof(ip6_addr_t));
 
-    char src_addr_str[IP6ADDR_STRLEN_MAX];
-    char dst_addr_str[IP6ADDR_STRLEN_MAX];
-    ip6addr_ntoa_r(&temp_src_addr, src_addr_str, sizeof(src_addr_str));
-    ip6addr_ntoa_r(&temp_dest_addr, dst_addr_str, sizeof(dst_addr_str));
+    bool should_log_packet = true;
+    ip6_addr_t addr_to_ignore_log;
 
-    printf("DTN Controller: Intercepted packet [%s] -> [%s] (Proto: %d, Len: %d)\n",
-           src_addr_str, dst_addr_str, IP6H_NEXTH(ip6hdr), p->tot_len);
+    if (ip6addr_aton(IP_TO_IGNORE_LOGGING, &addr_to_ignore_log)) {
+        ip6_addr_t temp_src_no_zone, temp_dest_no_zone, addr_to_ignore_no_zone;
+
+        memcpy(&temp_src_no_zone, &temp_src_addr, sizeof(ip6_addr_t));
+        memcpy(&temp_dest_no_zone, &temp_dest_addr, sizeof(ip6_addr_t));
+        memcpy(&addr_to_ignore_no_zone, &addr_to_ignore_log, sizeof(ip6_addr_t));
+
+#if LWIP_IPV6_SCOPES
+        ip6_addr_set_zone(&temp_src_no_zone, IP6_NO_ZONE);
+        ip6_addr_set_zone(&temp_dest_no_zone, IP6_NO_ZONE);
+        ip6_addr_set_zone(&addr_to_ignore_no_zone, IP6_NO_ZONE);
+#endif
+
+        if (ip6_addr_cmp(&temp_src_no_zone, &addr_to_ignore_no_zone) ||
+            ip6_addr_cmp(&temp_dest_no_zone, &addr_to_ignore_no_zone)) {
+            should_log_packet = false;
+        }
+    } else {
+        fprintf(stderr, "DTN Controller: WARNING - Failed to parse IP_TO_IGNORE_LOGGING address: %s\n", IP_TO_IGNORE_LOGGING);
+    }
+
+    char src_addr_str[IP6ADDR_STRLEN_MAX]; 
+    char dst_addr_str[IP6ADDR_STRLEN_MAX];
+
+    if (should_log_packet) {
+        ip6addr_ntoa_r(&temp_src_addr, src_addr_str, sizeof(src_addr_str));
+        ip6addr_ntoa_r(&temp_dest_addr, dst_addr_str, sizeof(dst_addr_str));
+        /*printf("DTN Controller: Intercepted packet [%s] -> [%s] (Proto: %d, Len: %d)\n",
+               src_addr_str, dst_addr_str, IP6H_NEXTH(ip6hdr), p->tot_len);*/
+    }
 
     Routing_Function* routing = controller->parent_module->routing;
     Storage_Function* storage = controller->parent_module->storage;
 
     if (!dtn_routing_is_dtn_destination(routing, &temp_dest_addr)) {
-        printf("DTN Controller: Destination %s is not a DTN node. Passing to LwIP.\n", dst_addr_str);
+        if (should_log_packet) { 
+            if (src_addr_str[0] == '\0') { 
+                 ip6addr_ntoa_r(&temp_dest_addr, dst_addr_str, sizeof(dst_addr_str));
+            }
+            //printf("DTN Controller: Destination %s is not a DTN node. Passing to LwIP.\n", dst_addr_str);
+        }
         err_t err = ip6_input(p, inp_netif);
         if (err != ERR_OK) {
-            fprintf(stderr, "DTN Controller: ip6_input returned error %d for non-DTN packet.\n", err);
+            if (dst_addr_str[0] == '\0') {
+                ip6addr_ntoa_r(&temp_dest_addr, dst_addr_str, sizeof(dst_addr_str));
+            }
+            fprintf(stderr, "DTN Controller: ip6_input returned error %d for non-DTN packet to %s.\n", err, dst_addr_str);
         }
         return;
     }
 
+    if (src_addr_str[0] == '\0') { 
+        ip6addr_ntoa_r(&temp_src_addr, src_addr_str, sizeof(src_addr_str));
+        ip6addr_ntoa_r(&temp_dest_addr, dst_addr_str, sizeof(dst_addr_str));
+    }
     printf("DTN Controller: Destination %s IS a DTN node. Checking contact...\n", dst_addr_str);
     ip6_addr_t next_hop_ip;
     int contact_available = dtn_routing_get_dtn_next_hop(routing, &temp_dest_addr, &next_hop_ip);
 
     if (contact_available) {
         printf("DTN Controller: Contact OPEN for DTN node %s. Passing to LwIP for potential forwarding.\n", dst_addr_str);
-        err_t err = ip6_input(p, inp_netif); 
+        err_t err = ip6_input(p, inp_netif);
         if (err != ERR_OK) {
-            fprintf(stderr, "DTN Controller: ip6_input returned error %d for DTN packet with open contact.\n", err);
+            fprintf(stderr, "DTN Controller: ip6_input returned error %d for DTN packet with open contact to %s.\n", err, dst_addr_str);
         }
     } else {
         printf("DTN Controller: Contact CLOSED for DTN node %s. Attempting to store.\n", dst_addr_str);
@@ -92,6 +131,7 @@ void dtn_controller_process_incoming(DTN_Controller* controller, struct pbuf *p,
         }
     }
 }
+
 
 
 void dtn_controller_attempt_forward_stored(DTN_Controller* controller, struct netif *netif_out) {

@@ -20,7 +20,8 @@
 #include "lwip/ip6_addr.h"  
 #include "lwip/ip.h"       
 #include "lwip/sys.h"    
-#include "lwip/err.h"      
+#include "lwip/err.h"    
+#include "lwip/contrib/addons/ipv6_static_routing/ip6_route_table.h"
 
 // DTN Module headers
 #include "dtn_module.h"
@@ -30,6 +31,7 @@
 // Constants
 #define TUN_IFNAME "tun0"
 #define PACKET_BUF_SIZE 2048
+#define HOST_TUN_IPV6_ADDR "fd00::1"
 
 static DTN_Module* global_dtn_module = NULL;
 
@@ -142,44 +144,92 @@ int main() {
     if (flags == -1) { perror("fcntl F_GETFL"); close(tun_fd); dtn_module_cleanup(global_dtn_module); exit(EXIT_FAILURE); }
     if (fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == -1) { perror("fcntl F_SETFL O_NONBLOCK"); close(tun_fd); dtn_module_cleanup(global_dtn_module); exit(EXIT_FAILURE); }
 
-    if (!netif_add(&tun_netif, (void*)&tun_fd, tunif_init, ip6_input)) {
-         fprintf(stderr, "Failed to add netif to lwIP\n");
-         close(tun_fd);
-         dtn_module_cleanup(global_dtn_module);
-         exit(EXIT_FAILURE);
+    if (!netif_add(&tun_netif, (void*)&tun_fd, tunif_init, ip6_input)) { 
+        fprintf(stderr, "Failed to add netif to lwIP\n");
+        close(tun_fd);
+        dtn_module_cleanup(global_dtn_module);
+        exit(EXIT_FAILURE);
     }
 
     netif_set_default(&tun_netif);
-    netif_set_up(&tun_netif);
-    printf("Interface set UP.\n");
+    netif_set_up(&tun_netif); 
+    printf("Interface '%s' (LwIP: %c%c) set UP and default.\n", tun_name, tun_netif.name[0], tun_netif.name[1]);
+
+    netif_create_ip6_linklocal_address(&tun_netif, 1);
+    printf("Link-local address creation requested for %c%c.\n", tun_netif.name[0], tun_netif.name[1]);
+
+    printf("Current IPv6 addresses on %c%c after link-local creation attempt:\n", tun_netif.name[0], tun_netif.name[1]);
+    for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; ++i) {
+        if (netif_ip6_addr_state(&tun_netif, i) != IP6_ADDR_INVALID) {
+            char s[IP6ADDR_STRLEN_MAX]; 
+            ip6addr_ntoa_r(netif_ip6_addr(&tun_netif, i), s, sizeof(s));
+            printf("  Index %d: %s (State: %u %s)\n", i, s,
+                netif_ip6_addr_state(&tun_netif, i),
+                ip6_addr_ispreferred(netif_ip6_addr_state(&tun_netif, i)) ? "[Preferred]" :
+                (ip6_addr_isvalid(netif_ip6_addr_state(&tun_netif, i)) ? "[Valid]" :
+                (ip6_addr_istentative(netif_ip6_addr_state(&tun_netif, i))  ? "[Tentative]" : "[Other]")));
+
+            if (ip6_addr_islinklocal(netif_ip6_addr(&tun_netif, i)) &&
+                !ip6_addr_ispreferred(netif_ip6_addr_state(&tun_netif, i))) {
+                netif_ip6_addr_set_state(&tun_netif, i, IP6_ADDR_PREFERRED);
+                printf("    -> Set Link-Local (Index %d) to PREFERRED.\n", i);
+            }
+        }
+    }
 
     ip6_addr_t ip6addr_lwip_stack;
     if (!ip6addr_aton("fd00::2", &ip6addr_lwip_stack)) {
-        fprintf(stderr, "Failed to parse LwIP stack IPv6 address\n");
-        netif_remove(&tun_netif); close(tun_fd); dtn_module_cleanup(global_dtn_module);
+        fprintf(stderr, "FATAL: Failed to parse LwIP stack IPv6 address fd00::2\n");
+        netif_remove(&tun_netif); 
+        close(tun_fd);
+        dtn_module_cleanup(global_dtn_module);
         exit(EXIT_FAILURE);
     }
-    if (!netif_add_ip6_address(&tun_netif, &ip6addr_lwip_stack, NULL)) {
-        fprintf(stderr, "Failed to add LwIP stack address fd00::2 to netif.\n");
+
+    s8_t assigned_idx_global = -1; 
+    err_t add_global_err = netif_add_ip6_address(&tun_netif, &ip6addr_lwip_stack, &assigned_idx_global);
+
+    if (add_global_err == ERR_OK) {
+        printf("LwIP stack address fd00::2 added successfully at index %d.\n", assigned_idx_global);
+        if (assigned_idx_global >= 0 && netif_ip6_addr_state(&tun_netif, assigned_idx_global) != IP6_ADDR_INVALID) {
+            netif_ip6_addr_set_state(&tun_netif, assigned_idx_global, IP6_ADDR_PREFERRED);
+            printf("  State for address fd00::2 (Index %d) set to PREFERRED.\n", assigned_idx_global);
+        } else {
+            fprintf(stderr, "  WARNING: Address fd00::2 (Index %d) reported as added but state is invalid or index is negative.\n", assigned_idx_global);
+        }
     } else {
-        printf("LwIP stack address fd00::2 add attempted.\n");
+        fprintf(stderr, "WARNING: netif_add_ip6_address for fd00::2 failed with error code %d.\n", (int)add_global_err);
+        s8_t found_idx_after_fail = netif_get_ip6_addr_match(&tun_netif, &ip6addr_lwip_stack);
+        if (found_idx_after_fail >= 0) {
+            printf("  However, fd00::2 was found at Index %d after the reported failure.\n", found_idx_after_fail);
+            if (netif_ip6_addr_state(&tun_netif, found_idx_after_fail) != IP6_ADDR_INVALID &&
+                !ip6_addr_ispreferred(netif_ip6_addr_state(&tun_netif, found_idx_after_fail))) {
+                netif_ip6_addr_set_state(&tun_netif, found_idx_after_fail, IP6_ADDR_PREFERRED);
+                printf("  State for fd00::2 (Index %d) set to PREFERRED.\n", found_idx_after_fail);
+            } else if (ip6_addr_ispreferred(netif_ip6_addr_state(&tun_netif, found_idx_after_fail))) {
+                printf("  Address fd00::2 (Index %d) was already preferred.\n", found_idx_after_fail);
+            }
+        } else {
+            fprintf(stderr, "  And fd00::2 was NOT found by netif_get_ip6_addr_match after the reported failure. This is problematic.\n");
+        }
     }
 
-    netif_create_ip6_linklocal_address(&tun_netif, 1);
-    printf("Link-local address creation requested.\n");
+    struct ip6_prefix default_prefix;
+    ip6_addr_t gw_addr;
+    s8_t route_idx;
 
-    #if LWIP_IPV6_NUM_ADDRESSES > 0
-        s8_t addr_index = netif_get_ip6_addr_match(&tun_netif, &ip6addr_lwip_stack);
-        if (addr_index >= 0 && netif_ip6_addr_state(&tun_netif, addr_index) != IP6_ADDR_INVALID) {
-            netif_ip6_addr_set_state(&tun_netif, addr_index, IP6_ADDR_PREFERRED);
-            printf("State for address fd00::2 (index %d) set to PREFERRED.\n", addr_index);
+    ip6_addr_set_any(&default_prefix.addr);
+    default_prefix.prefix_len = 0;      
+
+    if (ip6addr_aton(HOST_TUN_IPV6_ADDR, &gw_addr)) { 
+        if (ip6_add_route_entry(&default_prefix, &tun_netif, &gw_addr, &route_idx) == ERR_OK) {
+            printf("LwIP: Static default IPv6 route added via %s (index %d).\n", HOST_TUN_IPV6_ADDR, route_idx);
         } else {
-             if (netif_ip6_addr_state(&tun_netif, 0) != IP6_ADDR_INVALID) {
-                netif_ip6_addr_set_state(&tun_netif, 0, IP6_ADDR_PREFERRED);
-                printf("State for address at index 0 set to PREFERRED (fallback).\n");
-            }
+            fprintf(stderr, "LwIP: Failed to add static default IPv6 route.\n");
         }
-    #endif
+    } else {
+        fprintf(stderr, "LwIP: Failed to parse gateway address %s for static route.\n", HOST_TUN_IPV6_ADDR);
+    }
 
     printf("Waiting for addresses to settle...\n");
     sleep(2);
