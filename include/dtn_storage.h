@@ -1,4 +1,3 @@
-// dtn_storage.h
 #ifndef DTN_STORAGE_H
 #define DTN_STORAGE_H
 
@@ -31,12 +30,6 @@ int dtn_storage_store_packet(Storage_Function* storage, struct pbuf* p, const ip
 int dtn_storage_is_full(Storage_Function* storage);
 Stored_Packet_Entry* dtn_storage_retrieve_packet_for_dest(Storage_Function* storage, const ip6_addr_t* target_dest);
 
-/**
- * @brief Frees a Stored_Packet_Entry structure ONLY.
- * The caller is responsible for managing the pbuf (p) within the entry.
- *
- * @param entry The Stored_Packet_Entry structure to free.
- */
-void dtn_storage_free_retrieved_entry_struct(Stored_Packet_Entry* entry); // Renamed
+void dtn_storage_free_retrieved_entry_struct(Stored_Packet_Entry* entry);
 
-#endif // DTN_STORAGE_H
+#endif

@@ -34,6 +34,8 @@ APP_SRC = \
     src/dtn_module.c \
     src/dtn_controller.c \
     src/dtn_routing.c \
+	src/dtn_icmpv6.c \
+	src/raw_socket.c \
     src/dtn_storage.c
 
 SOURCES = $(APP_SRC) port/sys_arch.c $(LWIP_SRC)

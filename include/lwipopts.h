@@ -1,27 +1,27 @@
 #ifndef LWIPOPTS_H
 #define LWIPOPTS_H
 
-// Core System Configuration
+// Core System
 #define NO_SYS 1
 #define LWIP_TIMERS 1
 #define LWIP_TIMEVAL_PRIVATE 0
 #define SYS_LIGHTWEIGHT_PROT 1
 
-// Protocol Support Configuration
-#define LWIP_IPV4 0                      // Disable IPv4
-#define LWIP_ARP 0                       // No ARP needed
-#define LWIP_ETHERNET 0                  // No Ethernet
-#define LWIP_TCP 0                       // Disable TCP for now
-#define LWIP_UDP 0                       // Disable UDP for now
-#define LWIP_ICMP 0                      // No ICMP for IPv4
+// Ipv4 Configuration
+#define LWIP_IPV4 0                      
+#define LWIP_ARP 0                       
+#define LWIP_ETHERNET 0              
+#define LWIP_TCP 0          
+#define LWIP_UDP 0             
+#define LWIP_ICMP 0                    
 
 // IPv6 Configuration
 #define LWIP_IPV6 1
-#define LWIP_ICMP6 1                     // Needed for DTN signaling
+#define LWIP_ICMP6 1                    
 #define LWIP_IPV6_REASS 0
 #define LWIP_ND6_QUEUEING 0
 #define LWIP_NETIF_IPV6_ADDR_GEN_AUTO 0
-#define LWIP_IPV6_NUM_ADDRESSES 3 // Or more
+#define LWIP_IPV6_NUM_ADDRESSES 3 
 #define LWIP_IPV6_FORWARD 1
 #define IP_FORWARD 1
 #define IP_FORWARD_ALLOW_TX_ON_RX_NETIF 1
@@ -43,6 +43,7 @@
 #define LWIP_SOCKET 0
 #define LWIP_NETCONN 0
 
+// Debugging
 //#define LWIP_DEBUG
 //#define IP6_DEBUG       LWIP_DBG_ON
 

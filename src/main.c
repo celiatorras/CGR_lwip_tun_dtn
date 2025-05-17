@@ -27,11 +27,14 @@
 #include "dtn_module.h"
 #include "dtn_controller.h" 
 #include "dtn_routing.h"    
+#include "dtn_icmpv6.h" 
+#include "raw_socket.h"
 
 // Constants
 #define TUN_IFNAME "tun0"
 #define PACKET_BUF_SIZE 2048
 #define HOST_TUN_IPV6_ADDR "fd00::1"
+#define CONTACT_CHECK_INTERVAL_MS 1000
 
 static DTN_Module* global_dtn_module = NULL;
 
@@ -140,6 +143,14 @@ int main() {
     }
     printf("TUN device '%s' created successfully (fd: %d).\n", tun_name, tun_fd);
 
+    if (raw_socket_init("enp0s8", "enp0s9") < 0) {
+        fprintf(stderr, "Failed to initialize raw sockets\n");
+        netif_remove(&tun_netif);
+        close(tun_fd);
+        dtn_module_cleanup(global_dtn_module);
+        exit(EXIT_FAILURE);
+    }
+
     int flags = fcntl(tun_fd, F_GETFL, 0);
     if (flags == -1) { perror("fcntl F_GETFL"); close(tun_fd); dtn_module_cleanup(global_dtn_module); exit(EXIT_FAILURE); }
     if (fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == -1) { perror("fcntl F_SETFL O_NONBLOCK"); close(tun_fd); dtn_module_cleanup(global_dtn_module); exit(EXIT_FAILURE); }
@@ -210,7 +221,7 @@ int main() {
                 printf("  Address fd00::2 (Index %d) was already preferred.\n", found_idx_after_fail);
             }
         } else {
-            fprintf(stderr, "  And fd00::2 was NOT found by netif_get_ip6_addr_match after the reported failure. This is problematic.\n");
+            fprintf(stderr, "  And fd00::2 was NOT found by netif_get_ip6_addr_match after the reported failure.\n");
         }
     }
 
@@ -239,12 +250,6 @@ int main() {
 
     printf("Entering main loop...\n");
 
-    u32_t contact_simulation_start_time_ms = sys_now();
-    bool contact_made_available = false;
-    #define CONTACT_CHECK_INTERVAL_MS 1000
-    #define SIMULATE_CONTACT_AFTER_MS 15000
-
-
     while (1) {
         fd_set readfds; 
         FD_ZERO(&readfds);
@@ -271,13 +276,9 @@ int main() {
             if (tunif_input(&tun_netif) == ERR_CONN) { fprintf(stderr, "TUN connection closed. Exiting.\n"); break; }
         }
 
-        u32_t current_time_ms = sys_now();
 
-        if (!contact_made_available && (current_time_ms - contact_simulation_start_time_ms > SIMULATE_CONTACT_AFTER_MS)) {
-            if (global_dtn_module && global_dtn_module->routing) {
-                dtn_routing_set_contact_availability(global_dtn_module->routing, true);
-                contact_made_available = true;
-            }
+        if (global_dtn_module && global_dtn_module->routing) {
+            dtn_routing_update_contacts(global_dtn_module->routing);
         }
 
         if (global_dtn_module && global_dtn_module->controller) {
@@ -285,14 +286,15 @@ int main() {
         }
     }
 
-    printf("Shutting down...\n");
-    if (global_dtn_module && global_dtn_module->routing && contact_made_available) {
-        dtn_routing_set_contact_availability(global_dtn_module->routing, false);
+    if (global_dtn_module && global_dtn_module->routing) {
     }
+
+    printf("Shutting down...\n");
     netif_set_down(&tun_netif);
     netif_remove(&tun_netif);
     close(tun_fd); 
     dtn_module_cleanup(global_dtn_module); 
+    raw_socket_cleanup();
 
     printf("Shutdown complete.\n");
     return 0;
