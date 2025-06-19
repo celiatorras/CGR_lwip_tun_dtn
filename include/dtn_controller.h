@@ -8,11 +8,13 @@
 
 #define MAX_DESTINATIONS 10
 #define FORWARDING_RETRY_DELAY_MS 30000  // 30 seconds delay between retransmissions
+#define MAX_FORWARDING_RETRIES 10 // Max retries
 
 // Structure to track forwarding attempts
 typedef struct {
     ip6_addr_t destination;
     u32_t last_attempt_time;
+    int retry_count; 
     bool is_valid;
 } ForwardingAttempt;
 

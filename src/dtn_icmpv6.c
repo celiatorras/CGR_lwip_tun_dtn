@@ -198,6 +198,7 @@ u8_t dtn_icmpv6_process(struct pbuf *p, struct netif *inp_netif)
             // Remove destination from forwarding tracking list
             dtn_controller_remove_tracking(global_dtn_module->controller, &dest_addr);
             
+            /*
             // Create a copy of the received message to forward the "delivered" status to the previous node
             struct pbuf *delivered_pkt = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
             if (delivered_pkt != NULL) {
@@ -217,6 +218,7 @@ u8_t dtn_icmpv6_process(struct pbuf *p, struct netif *inp_netif)
                 }
                 pbuf_free(delivered_pkt);
             }
+            */
             
             return 1;
         }
