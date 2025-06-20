@@ -3,6 +3,7 @@
 #include "lwip/ip6.h"
 #include "lwip/icmp6.h"
 #include "lwip/prot/icmp6.h"
+#include "lwip/prot/ip6.h"
 #include "lwip/ip.h"
 #include "lwip/inet_chksum.h"
 #include "lwip/netif.h"
@@ -187,8 +188,34 @@ u8_t dtn_icmpv6_process(struct pbuf *p, struct netif *inp_netif)
             // Extract original IPv6 header
             struct ip6_hdr *orig_ip6hdr = extract_original_header(icmp6hdr);
             
-            // Delete the stored packet as next hop has confirmed reception
-            dtn_storage_delete_packet_by_ip_header(global_dtn_module->storage, orig_ip6hdr);
+            // Delete the stored packet using enhanced matching with payload verification
+            // We need to reconstruct the full ICMP packet for proper parsing
+            // The current 'p' pbuf should contain the complete ICMP message
+            struct pbuf *icmp_with_ipv6 = pbuf_alloc(PBUF_RAW, IP6_HLEN + p->tot_len, PBUF_RAM);
+            if (icmp_with_ipv6 != NULL) {
+                // Copy the outer IPv6 header (we need to reconstruct it)
+                struct ip6_hdr *outer_ipv6 = (struct ip6_hdr *)icmp_with_ipv6->payload;
+                // Set basic IPv6 header fields
+                IP6H_VTCFL_SET(outer_ipv6, 6, 0, 0);
+                IP6H_PLEN_SET(outer_ipv6, p->tot_len);
+                IP6H_NEXTH_SET(outer_ipv6, IP6_NEXTH_ICMP6);
+                IP6H_HOPLIM_SET(outer_ipv6, 255);
+                // Copy source and destination from current IP context
+                memcpy(&outer_ipv6->src, ip6_current_src_addr(), sizeof(ip6_addr_p_t));
+                memcpy(&outer_ipv6->dest, ip6_current_dest_addr(), sizeof(ip6_addr_p_t));
+                
+                // Copy the ICMP payload
+                if (pbuf_copy_partial(p, (u8_t*)icmp_with_ipv6->payload + IP6_HLEN, p->tot_len, 0) == p->tot_len) {
+                    dtn_storage_delete_packet_by_icmp_data(global_dtn_module->storage, icmp_with_ipv6);
+                } else {
+                    // Fallback to old method
+                    dtn_storage_delete_packet_by_ip_header(global_dtn_module->storage, orig_ip6hdr);
+                }
+                pbuf_free(icmp_with_ipv6);
+            } else {
+                // Fallback to old method if allocation fails
+                dtn_storage_delete_packet_by_ip_header(global_dtn_module->storage, orig_ip6hdr);
+            }
             
             // Remove tracking for this destination
             ip6_addr_t dest_addr;

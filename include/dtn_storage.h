@@ -36,6 +36,7 @@ Stored_Packet_Entry* dtn_storage_retrieve_packet_for_dest(Storage_Function* stor
 void dtn_storage_free_retrieved_entry_struct(Stored_Packet_Entry* entry);
 Stored_Packet_Entry* dtn_storage_get_packet_copy_for_dest(Storage_Function* storage, const ip6_addr_t* target_dest);
 void dtn_storage_delete_packet_by_ip_header(Storage_Function* storage, struct ip6_hdr* orig_ip6hdr);
+void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pbuf* icmp_packet);
 int dtn_storage_init_directory(Storage_Function* storage);
 int dtn_storage_save_packet_to_disk(Storage_Function* storage, Stored_Packet_Entry* entry);
 int dtn_storage_remove_packet_from_disk(Storage_Function* storage, const char* filename);
