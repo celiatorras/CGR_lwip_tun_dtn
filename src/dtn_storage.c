@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include "dtn_custody.h"
 
 // File header for stored packets
 typedef struct {
@@ -314,19 +315,35 @@ int dtn_storage_store_packet(Storage_Function* storage, struct pbuf* p, const ip
         printf("DTN Storage: Storage is full. Cannot store packet for %s.\n", addr_str);
         return 0;
     }
+    
+    // Create a copy of the packet to strip headers if needed
+    struct pbuf *p_to_store = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+    if (!p_to_store) {
+        perror("DTN Storage: Failed to allocate pbuf for storage copy");
+        return 0;
+    }
+    
+    if (pbuf_copy(p_to_store, p) != ERR_OK) {
+        perror("DTN Storage: Failed to copy packet for storage");
+        pbuf_free(p_to_store);
+        return 0;
+    }
+    
+    // Strip hop-by-hop header if present
+    dtn_strip_custodian_option(&p_to_store);
 
     Stored_Packet_Entry* new_entry = (Stored_Packet_Entry*)malloc(sizeof(Stored_Packet_Entry));
     if (!new_entry) {
         perror("DTN Storage: Failed to allocate memory for Stored_Packet_Entry");
+        pbuf_free(p_to_store);
         return 0;
     }
 
-    pbuf_ref(p);
-    new_entry->p = p;
+    new_entry->p = p_to_store; // Store the stripped version
     memcpy(&new_entry->original_dest, original_dest, sizeof(ip6_addr_t));
     new_entry->stored_time_ms = sys_now();
     new_entry->next = NULL;
-    new_entry->filename[0] = '\0'; 
+    new_entry->filename[0] = '\0';
     
     if (!dtn_storage_save_packet_to_disk(storage, new_entry)) {
         fprintf(stderr, "DTN Storage: Failed to save packet to disk\n");

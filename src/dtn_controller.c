@@ -317,7 +317,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         {
             if (dtn_storage_store_packet(storage, p, &temp_dest_addr))
             {
-                // Create a copy of the packet for DTN-PCK-RECEIVED message
+                // Create a copy for DTN-PCK-RECEIVED message BEFORE stripping headers
                 struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
                 if (p_copy != NULL)
                 {
@@ -328,6 +328,8 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
                     }
                     pbuf_free(p_copy);
                 }
+                
+                // Note: The storage function should handle stripping internally
                 return;
             }
             else

@@ -80,3 +80,43 @@ bool dtn_extract_custodian_option(const struct pbuf *p, ip6_addr_t *custodian_ou
     memcpy(custodian_out->addr, hbh->addr, 16);
     return true;
 }
+
+bool dtn_strip_custodian_option(struct pbuf **p) {
+    if (!p || !*p) return false;
+    struct pbuf *orig = *p;
+    struct ip6_hdr *ip6hdr = (struct ip6_hdr *)orig->payload;
+    
+    // Check if packet has hop-by-hop header
+    if (IP6H_NEXTH(ip6hdr) != IP6_NEXTH_HOPOPTS) {
+        return false; // No hop-by-hop header to strip
+    }
+    
+    // Get the hop-by-hop header
+    struct hbh_hdr *hbh = (struct hbh_hdr *)((uint8_t*)orig->payload + IP6_HLEN);
+    uint8_t next_nexth = hbh->next_header;
+    uint16_t hbh_len = HBH_OPT_HDR_LEN;
+    
+    // Calculate new packet length
+    uint16_t orig_len = IP6H_PLEN(ip6hdr);
+    uint16_t new_len = orig_len - hbh_len;
+    
+    // Allocate new pbuf without hop-by-hop header
+    struct pbuf *newp = pbuf_alloc(PBUF_RAW, IP6_HLEN + new_len, PBUF_RAM);
+    if (!newp) return false;
+    
+    // Copy IPv6 header and update
+    memcpy(newp->payload, ip6hdr, IP6_HLEN);
+    struct ip6_hdr *new_ip6 = newp->payload;
+    IP6H_NEXTH_SET(new_ip6, next_nexth); // Set next header to what HBH pointed to
+    IP6H_PLEN_SET(new_ip6, new_len);
+    
+    // Copy remaining payload (skip HBH header)
+    uint8_t *dst = (uint8_t*)newp->payload + IP6_HLEN;
+    uint8_t *src = (uint8_t*)orig->payload + IP6_HLEN + hbh_len;
+    memcpy(dst, src, orig->tot_len - IP6_HLEN - hbh_len);
+    
+    // Replace old packet
+    pbuf_free(orig);
+    *p = newp;
+    return true;
+}

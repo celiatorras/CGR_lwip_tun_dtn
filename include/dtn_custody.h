@@ -14,4 +14,6 @@ bool dtn_add_custodian_option(struct pbuf **p, const ip6_addr_t *custodian);
 
 bool dtn_extract_custodian_option(const struct pbuf *p, ip6_addr_t *custodian_out);
 
+bool dtn_strip_custodian_option(struct pbuf **p);
+
 #endif
