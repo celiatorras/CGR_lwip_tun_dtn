@@ -58,7 +58,8 @@ As described, a lwipopts.h file must be created for each lwIP project, specifyin
 The opt.h, containing all possible features and parameters to lwIP can be found, as mentioned under lwip/src/include/lwip/opt.h.
 
 ## AUTHORS
-
+* Michael Karpov michael.karpov@estudiantat.upc.edu — Initial author and main developer
+* Anna Calveras anna.calveras@upc.edu — Project supervisor
 
 
 ## FUNDING
