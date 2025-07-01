@@ -73,10 +73,10 @@ others
 
 ## CUSTOM ICMPV6 MESSAGES
 
-| 200 | DTN-PCK-RECEIVED | Packet received by DTN node |
-| 201 | DTN-PCK-FORWARDED | Packet forwarded to next hop |
-| 202 | DTN-PCK-DELIVERED | Packet reached final destination |
-| 203 | DTN-PCK-DELETED | Packet deleted from storage |
+- | 200 | DTN-PCK-RECEIVED | Packet received by DTN node |
+- | 201 | DTN-PCK-FORWARDED | Packet forwarded to next hop |
+- | 202 | DTN-PCK-DELIVERED | Packet reached final destination |
+- | 203 | DTN-PCK-DELETED | Packet deleted from storage |
 
 ## AUTHORS
 
