@@ -1,3 +1,18 @@
+// dtn_icmpv6.c: Implementation of custom ICMPv6 messages for DTN packet status notifications (RECEIVED, FORWARDED, DELIVERED, DELETED)
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #include "lwip/sys.h"
 #include "dtn_icmpv6.h"
 #include "lwip/ip6.h"
@@ -21,10 +36,10 @@ extern void dtn_storage_delete_packet_by_ip_header(Storage_Function* storage, st
 // Structure for DTN custom ICMPv6 message payload
 #pragma pack(1)
 typedef struct {
-    u32_t timestamp;      // Time when event occurred (in milliseconds)
+    u32_t timestamp;    
     u16_t fragment_offset; 
     u16_t payload_length;  
-    u8_t  reason_code;     // Detailed reason
+    u8_t  reason_code;    
 } dtn_icmpv6_payload_t;
 #pragma pack()
 
@@ -188,12 +203,10 @@ u8_t dtn_icmpv6_process(struct pbuf *p, struct netif *inp_netif)
             // Extract original IPv6 header
             struct ip6_hdr *orig_ip6hdr = extract_original_header(icmp6hdr);
             
-            // Delete the stored packet using enhanced matching with payload verification
-            // We need to reconstruct the full ICMP packet for proper parsing
-            // The current 'p' pbuf should contain the complete ICMP message
+            // Delete the stored packet
             struct pbuf *icmp_with_ipv6 = pbuf_alloc(PBUF_RAW, IP6_HLEN + p->tot_len, PBUF_RAM);
             if (icmp_with_ipv6 != NULL) {
-                // Copy the outer IPv6 header (we need to reconstruct it)
+                // Copy the outer IPv6 header
                 struct ip6_hdr *outer_ipv6 = (struct ip6_hdr *)icmp_with_ipv6->payload;
                 // Set basic IPv6 header fields
                 IP6H_VTCFL_SET(outer_ipv6, 6, 0, 0);
@@ -208,47 +221,22 @@ u8_t dtn_icmpv6_process(struct pbuf *p, struct netif *inp_netif)
                 if (pbuf_copy_partial(p, (u8_t*)icmp_with_ipv6->payload + IP6_HLEN, p->tot_len, 0) == p->tot_len) {
                     dtn_storage_delete_packet_by_icmp_data(global_dtn_module->storage, icmp_with_ipv6);
                 } else {
-                    // Fallback to old method
                     dtn_storage_delete_packet_by_ip_header(global_dtn_module->storage, orig_ip6hdr);
                 }
                 pbuf_free(icmp_with_ipv6);
             } else {
-                // Fallback to old method if allocation fails
                 dtn_storage_delete_packet_by_ip_header(global_dtn_module->storage, orig_ip6hdr);
             }
             
             // Remove tracking for this destination
             ip6_addr_t dest_addr;
             
-            // Create a temporary copy to avoid unaligned pointer access
             u32_t temp_addr[4];
             memcpy(temp_addr, orig_ip6hdr->dest.addr, sizeof(temp_addr));
             packed_ip6_addr_to_ip6_addr_t(temp_addr, &dest_addr);
             
             // Remove destination from forwarding tracking list
             dtn_controller_remove_tracking(global_dtn_module->controller, &dest_addr);
-            
-            /*
-            // Create a copy of the received message to forward the "delivered" status to the previous node
-            struct pbuf *delivered_pkt = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
-            if (delivered_pkt != NULL) {
-                if (pbuf_copy(delivered_pkt, p) == ERR_OK) {
-                    // Modify the header to change from RECEIVED to DELIVERED
-                    struct icmp6_hdr *new_icmp6hdr = (struct icmp6_hdr *)delivered_pkt->payload;
-                    new_icmp6hdr->type = ICMP6_TYPE_DTN_PCK_DELIVERED;
-                    new_icmp6hdr->code = ICMP6_CODE_DTN_NO_INFO;
-                    
-                    ip6_addr_t prev_node_addr;
-                    
-                    memcpy(temp_addr, orig_ip6hdr->src.addr, sizeof(temp_addr));
-                    packed_ip6_addr_to_ip6_addr_t(temp_addr, &prev_node_addr);
-                    
-                    // Send the modified message via raw socket
-                    raw_socket_send_ipv6(delivered_pkt, &prev_node_addr);
-                }
-                pbuf_free(delivered_pkt);
-            }
-            */
             
             return 1;
         }

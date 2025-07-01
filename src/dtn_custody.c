@@ -1,3 +1,18 @@
+// dtn_custody.c: Implementation of custody transfer using IPv6 hop-by-hop extension headers for DTN reliability
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #include "dtn_custody.h"
 #include "lwip/ip6.h"
 #include "lwip/pbuf.h"

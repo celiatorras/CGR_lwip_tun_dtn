@@ -1,3 +1,18 @@
+// dtn_controller.c: Implementation of the DTN Controller that processes incoming packets and manages store-and-forward operations
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #include "dtn_controller.h"
 #include "dtn_routing.h"
 #include "dtn_storage.h"
@@ -257,7 +272,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
 
     if (is_for_this_lwip_stack)
     {
-        // Create a copy of the packet for DTN-PCK-RECEIVED and DTN-PCK-DELIVERED
+        // Create a copy of the packet for DTN-PCK-RECEIVED
         struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
         if (p_copy != NULL)
         {
@@ -317,7 +332,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         {
             if (dtn_storage_store_packet(storage, p, &temp_dest_addr))
             {
-                // Create a copy for DTN-PCK-RECEIVED message BEFORE stripping headers
+                // Create a copy for DTN-PCK-RECEIVED
                 struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
                 if (p_copy != NULL)
                 {
@@ -328,8 +343,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
                     }
                     pbuf_free(p_copy);
                 }
-                
-                // Note: The storage function should handle stripping internally
                 return;
             }
             else

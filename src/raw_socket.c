@@ -1,3 +1,18 @@
+// raw_socket.c: Implementation of raw IPv6 socket operations for direct packet transmission bypassing kernel routing
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #include "raw_socket.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,7 +112,6 @@ int raw_socket_send_ipv6(struct pbuf *p, const ip6_addr_t *dest_addr) {
         return -1;
     }
     
-    // Copy pbuf contents to buffer
     if (pbuf_copy_partial(p, buf, p->tot_len, 0) != p->tot_len) {
         fprintf(stderr, "Failed to copy pbuf data\n");
         return -1;
@@ -105,7 +119,7 @@ int raw_socket_send_ipv6(struct pbuf *p, const ip6_addr_t *dest_addr) {
 
     // If destination is in fd00:1::/64, use enp0s9, otherwise use enp0s8
     int use_second_interface = 0;
-    if (dest_addr->addr[0] == PP_HTONL(0xfd000001) && // fd00:0001::
+    if (dest_addr->addr[0] == PP_HTONL(0xfd000001) &&
         dest_addr->addr[1] == 0 &&
         dest_addr->addr[2] == 0) {
         use_second_interface = 1;

@@ -1,3 +1,18 @@
+// dtn_controller.h: Header file for the DTN Controller that manages packet forwarding and storage decisions in delay-tolerant networks
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #ifndef DTN_CONTROLLER_H
 #define DTN_CONTROLLER_H
 
@@ -10,7 +25,6 @@
 #define FORWARDING_RETRY_DELAY_MS 30000  // 30 seconds delay between retransmissions
 #define MAX_FORWARDING_RETRIES 10 // Max retries
 
-// Structure to track forwarding attempts
 typedef struct {
     ip6_addr_t destination;
     u32_t last_attempt_time;

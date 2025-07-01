@@ -1,3 +1,18 @@
+// dtn_storage.c: Implementation of persistent packet storage with disk-based backup for DTN store-and-forward functionality
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #include "dtn_storage.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,7 +51,6 @@ int dtn_storage_init_directory(Storage_Function* storage) {
     return 1;
 }
 
-// Save a packet to disk
 int dtn_storage_save_packet_to_disk(Storage_Function* storage, Stored_Packet_Entry* entry) {
     if (!storage || !entry || !entry->p) return 0;
     
@@ -99,7 +113,6 @@ int dtn_storage_save_packet_to_disk(Storage_Function* storage, Stored_Packet_Ent
     return 1;
 }
 
-// Remove a packet file from disk
 int dtn_storage_remove_packet_from_disk(Storage_Function* storage, const char* filename) {
     if (!storage || !filename) return 0;
     
@@ -112,7 +125,6 @@ int dtn_storage_remove_packet_from_disk(Storage_Function* storage, const char* f
     return 1;
 }
 
-// Load a packet from a file
 static Stored_Packet_Entry* dtn_storage_load_packet_from_file(Storage_Function* storage, const char* filename) {
     if (!storage || !filename) return NULL;
     
@@ -189,7 +201,6 @@ static Stored_Packet_Entry* dtn_storage_load_packet_from_file(Storage_Function* 
     return entry;
 }
 
-// Load all packets from storage directory
 int dtn_storage_load_packets_from_disk(Storage_Function* storage) {
     if (!storage) return 0;
     
@@ -497,7 +508,6 @@ Stored_Packet_Entry* dtn_storage_get_packet_copy_for_dest(Storage_Function* stor
     return NULL; 
 }
 
-// Delete a packet by matching the IPv6 header
 void dtn_storage_delete_packet_by_ip_header(Storage_Function* storage, struct ip6_hdr* orig_ip6hdr) {
     if (!storage || !orig_ip6hdr || !storage->packet_list_head) {
         return;
@@ -531,19 +541,15 @@ void dtn_storage_delete_packet_by_ip_header(Storage_Function* storage, struct ip
     Stored_Packet_Entry* prev = NULL;
     bool found = false;
     
-    // Iterate through the stored packets
     while (current != NULL) {
         if (current->p && current->p->len >= IP6_HLEN) {
             struct ip6_hdr* stored_ip6hdr = (struct ip6_hdr*)current->p->payload;
 
-            // Check if src/dst addresses match
             if (memcmp(&stored_ip6hdr->src,  &orig_ip6hdr->src,  16) == 0 &&
                 memcmp(&stored_ip6hdr->dest, &orig_ip6hdr->dest, 16) == 0) {
  
-                // Found matching packet
                 found = true;
-                
-                // Remove from list
+     
                 if (prev == NULL) {
                     storage->packet_list_head = current->next;
                 } else {
@@ -553,7 +559,6 @@ void dtn_storage_delete_packet_by_ip_header(Storage_Function* storage, struct ip
                 printf("DTN Storage: Deleting stored packet for %s (src=%s) as next hop confirmed reception\n", 
                        orig_dest_str, orig_src_str);
                 
-                // Remove from disk
                 dtn_storage_remove_packet_from_disk(storage, current->filename);
                 
                 pbuf_free(current->p);
@@ -575,26 +580,23 @@ void dtn_storage_delete_packet_by_ip_header(Storage_Function* storage, struct ip
     }
 }
 
-// Enhanced packet deletion using full ICMP packet data for better matching
 void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pbuf* icmp_packet) {
     if (!storage || !icmp_packet || !storage->packet_list_head) {
         return;
     }
     
     // Parse ICMP packet structure:
-    // IPv6 Header (40 bytes) + ICMPv6 Header (8 bytes) + DTN Payload + Original IPv6 Header + 8 bytes of original payload
+    // IPv6 Header (40 bytes) + ICMPv6 Header (8 bytes) + Payload + Original IPv6 Header + 8 bytes of original payload
     
     if (icmp_packet->len < IP6_HLEN + 8 + 9 + IP6_HLEN + 8) {
         printf("DTN Storage: ICMP packet too small for proper parsing\n");
         return;
     }
     
-    // Skip to the original IPv6 header in the ICMP payload
-    // Layout: ICMPv6 header (8) + DTN payload (9) + Original IPv6 header (40) + first 8 bytes
     u8_t* icmp_data = (u8_t*)icmp_packet->payload + IP6_HLEN + 8; // Skip outer IPv6 + ICMP headers
     
     // Skip DTN payload structure (9 bytes: 4+2+2+1)
-    icmp_data += 9; // Skip DTN payload: timestamp(4) + fragment_offset(2) + payload_length(2) + reason_code(1)
+    icmp_data += 9; 
     
     // Now icmp_data points to the original IPv6 header
     struct ip6_hdr* orig_ip6hdr = (struct ip6_hdr*)icmp_data;
@@ -622,10 +624,9 @@ void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pb
     
     if (orig_nexth == IP6_NEXTH_HOPBYHOP) {
         // Skip hop-by-hop header to get to actual payload
-        // HBH header format: next_header(1) + hdr_ext_len(1) + options
-        u8_t hbh_hdr_len = orig_first_8_bytes[1]; // hdr_ext_len field
-        orig_payload_offset = (hbh_hdr_len + 1) * 8; // Convert to bytes
-        orig_nexth = orig_first_8_bytes[0]; // next_header field
+        u8_t hbh_hdr_len = orig_first_8_bytes[1]; 
+        orig_payload_offset = (hbh_hdr_len + 1) * 8; 
+        orig_nexth = orig_first_8_bytes[0]; 
         
         printf("DTN Storage: Skipping hop-by-hop header (%d bytes) in ICMP data\n", orig_payload_offset);
     }
@@ -636,7 +637,6 @@ void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pb
     
     if (actual_payload_bytes <= 0) {
         printf("DTN Storage: Not enough payload data after headers, falling back to basic matching\n");
-        // Fall back to original function
         dtn_storage_delete_packet_by_ip_header(storage, orig_ip6hdr);
         return;
     }
@@ -654,14 +654,14 @@ void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pb
             if (memcmp(&stored_ip6hdr->src, &orig_ip6hdr->src, 16) == 0 &&
                 memcmp(&stored_ip6hdr->dest, &orig_ip6hdr->dest, 16) == 0) {
                 
-                // 2. Check next header protocol (should match after stripping HBH)
+                // 2. Check next header protocol
                 u8_t stored_nexth = stored_ip6hdr->_nexth;
                 u16_t stored_payload_offset = IP6_HLEN;
                 
                 // Stored packets shouldn't have hop-by-hop headers, but check anyway
                 if (stored_nexth == IP6_NEXTH_HOPBYHOP) {
                     printf("DTN Storage: Warning - stored packet has hop-by-hop header (unexpected)\n");
-                    continue; // Skip this packet as it's likely not a match
+                    continue; 
                 }
                 
                 // 3. Compare actual payload bytes

@@ -1,3 +1,18 @@
+// dtn_routing.h: Header file for DTN routing functions implementing contact-based and schedule-aware routing
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #ifndef DTN_ROUTING_H
 #define DTN_ROUTING_H
 
@@ -8,12 +23,12 @@
 
 // Contact opportunity
 typedef struct Contact_Info {
-    ip6_addr_t node_addr;         // Node address
-    ip6_addr_t next_hop;          // Next hop to reach this node
-    u32_t start_time_ms;          // Contact start time (ms since boot)
-    u32_t end_time_ms;            // Contact end time (ms since boot)
-    bool is_dtn_node;             // Whether this is a DTN-capable node
-    struct Contact_Info *next;    // Next contact in list
+    ip6_addr_t node_addr;      
+    ip6_addr_t next_hop;       
+    u32_t start_time_ms;      
+    u32_t end_time_ms;        
+    bool is_dtn_node;       
+    struct Contact_Info *next;  
 } Contact_Info;
 
 typedef struct Routing_Function {
@@ -31,7 +46,6 @@ bool dtn_routing_is_dtn_destination(Routing_Function* routing, const ip6_addr_t*
 
 int dtn_routing_get_dtn_next_hop(Routing_Function* routing, const ip6_addr_t* dest_ip, ip6_addr_t* next_hop_ip);
 
-// Add a contact to the routing function
 int dtn_routing_add_contact(Routing_Function* routing, 
                           const ip6_addr_t* node_addr, 
                           const ip6_addr_t* next_hop,
@@ -39,13 +53,10 @@ int dtn_routing_add_contact(Routing_Function* routing,
                           u32_t end_time_ms,
                           bool is_dtn_node);
 
-// Remove a contact from the routing function
 int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node_addr);
 
-// Update contact status based on current time
 void dtn_routing_update_contacts(Routing_Function* routing);
 
-// Check if a specific destination has an active contact
 bool dtn_routing_has_active_contact(Routing_Function* routing, const ip6_addr_t* dest_ip);
 
 #endif

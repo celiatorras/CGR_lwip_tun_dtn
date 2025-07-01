@@ -1,3 +1,18 @@
+// dtn_routing.c: Implementation of contact-based routing with time-variant contact management for DTN networks
+// Copyright (C) 2025 Michael Karpov
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #include "dtn_routing.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,10 +32,9 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
         
         printf("DTN Routing Function created. Mode: %s\n", routing->routing_algorithm_name);
         
-        // Add a test contact for TARGET_DTN_NODE_ADDR 
         ip6_addr_t target_node, next_hop;
         if (ip6addr_aton(TARGET_DTN_NODE_ADDR, &target_node)) {
-            ip6_addr_copy(next_hop, target_node); // Direct next hop
+            ip6_addr_copy(next_hop, target_node); 
             dtn_routing_add_contact(routing, &target_node, &next_hop, 
                                   sys_now() + 15000, // Start in 15 seconds
                                   sys_now() + 3600000, // End in 1 hour
@@ -161,7 +175,7 @@ void dtn_routing_update_contacts(Routing_Function* routing) {
     if (!routing) return;
     
     static u32_t last_check_time = 0;
-    static bool last_active_states[10] = {false}; // Simplistic. Works for < 10 contacts.
+    static bool last_active_states[10] = {false};
     static int contact_index = 0;
     
     u32_t current_time = sys_now();
@@ -229,7 +243,6 @@ bool dtn_routing_is_dtn_destination(Routing_Function* routing, const ip6_addr_t*
         contact = contact->next;
     }
     
-    // Fallback to TARGET_DTN_NODE_ADDR
     ip6_addr_t target_dtn_node;
     if (!ip6addr_aton(TARGET_DTN_NODE_ADDR, &target_dtn_node)) {
         fprintf(stderr, "DTN Routing: Failed to parse TARGET_DTN_NODE_ADDR %s!\n", TARGET_DTN_NODE_ADDR);

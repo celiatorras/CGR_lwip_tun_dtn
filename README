@@ -1,18 +1,30 @@
-## OPENING A TUN INTERFACE AND ASSIGNING AN IPV6 ADDRESS TO IT
+# DTN-Enabled IPv6 Implementation
 
-```bash     
-sudo ip tuntap add dev tun0 mode tun
-sudo ip -6 addr add fd00::1/64 dev tun0
-sudo ip link set dev tun0 up
-```
+## PROJECT DESCRIPTION
 
-```bash 
-sudo ip tuntap add dev tun0 mode tun
-sudo ip -6 addr add fd00:44::1/64 dev tun0
-sudo ip link set dev tun0 up
-```
+This project implements the architecture proposed in "Leveraging IPv6 and ICMPv6 for Delay-Tolerant Networking in Deep Space" by Pirovano et al. It demonstrates how to integrate DTN (Delay-Tolerant Networking) functionalities directly into IPv6 using custom ICMPv6 messages and hop-by-hop extension headers, enabling store-and-forward capabilities while maintaining full IPv6 compatibility.
+
+The implementation uses a modified version of the LwIP (Lightweight IP) stack in userspace with a TUN interface to intercept and process packets. DTN-aware nodes can store packets during network disruptions and forward them when connectivity is restored.
+
+## KEY FEATURES
+
+- **Store-and-Forward**: Persistent packet storage for handling network disruptions
+- **Custom ICMPv6 Signaling**: DTN status reporting (RECEIVED, FORWARDED, DELIVERED, DELETED)
+- **Contact-Based Routing**: Schedule-aware routing for intermittent connectivity
+- **Custody Transfer**: Optional hop-by-hop reliability mechanism
+- **Modular Architecture**: Separate controller, routing and storage functions
+
+## ARCHITECTURE
+
+The implementation consists of:
+- **DTN Module**: Core functionality with controller, routing and storage functions
+- **Custom LwIP**: Modified lightweight IP stack for userspace packet processing
+- **TUN Interface**: Intercepts packets from kernel to userspace
+- **Raw Sockets**: Direct packet transmission bypassing kernel routing
 
 ## COMPILING AND RUNNING THE PROJECT
+
+Inside the lwip-tun-dtn directory
 
 ```bash     
 make clean
@@ -20,48 +32,72 @@ make
 sudo ./lwip_tun
 ```
 
-## AVAILABLE OPTIONS IN LWIP
+The current configuration is set to run on a node with the following characteristics:
 
-From the lwIP Wiki:
+– fd00:01::2 (enp0s9) — Interface connecting to a neighbor Node
+– fd00:12::1 (enp0s8) — Interface connecting to another neighbor Node
+– fd00::1 (tun0) — TUN interface for kernel-userspace communication
+– fd00::2 — lwIP/DTN userspace address
+- Two raw sockets connected to interfaces enp0s8 and enp0s9
+- Scheduled contact for a node with address fd00:33::2
+
+For deployment on nodes/environments with other characteristics, all corresponding configurations in this project have to be adjusted. Namely:
+
+- dtn_controller.h/c
+- dtn_routing.h/c
+- main.c
+- raw_socket.h/c
+
+For deployment, the interfaces accessed by the lwIP/DTN userpace module have to exist and be configured on the system. Moreover, the environment has to be configured to forward all traffic towards the address of the lwIP/DTN userpace module (fd00::2) over the tun interface fd00::1 (tun0).  
+
+## PROJECT STRUCTURE
 
 ```
-Enabling and disabling modules. You can tune your code size by only compiling the features you really need. The following is a list of what gets compiled in "out of the box" with lwIP.
-
-Default inclusions:
-  *  ARP (LWIP_ARP)
-  *  IP and fragmentation (IP_FRAG) and reassembly (IP_REASSEMBLY)
-     Raw IP PCB support (LWIP_RAW)
-  *  UDP (LWIP_UDP) and UDP-Lite (LWIP_UDPLITE)
-  *  TCP (LWIP_TCP) -- this is a big one!
-  *  Statistics (LWIP_STATS)
-
-Default exclusions:
-  *  DHCP (LWIP_DHCP)
-  *  AUTOIP (LWIP_AUTOIP)
-  *  SNMP (LWIP_SNMP)
-  *  IGMP (LWIP_IGMP)
-  *  PPP (PPP_SUPPORT)
-
-If you would like to change this, then you just need to set the options listed below. For example, if you would like to disable UDP and enable DHCP, the following lwipopts.h file would do it:
-
-// Disable UDP
- #define LWIP_UDP 0
- 
- // Enable DHCP
- #define LWIP_DHCP 1
- 
-Fine-tuning even more:
-To see the options that you can set, open lwip/src/include/lwip/opt.h. This file is fully commented and explains how many of the options are used.
+.
+inside src/ and include/
+├── main.c                 # Main entry point and TUN interface setup
+├── dtn_module.[ch]        # DTN module initialization
+├── dtn_controller.[ch]    # Packet processing and forwarding logic
+├── dtn_routing.[ch]       # Contact-based routing implementation
+├── dtn_storage.[ch]       # Persistent packet storage
+├── dtn_custody.[ch]       # Custody transfer mechanisms
+├── dtn_icmpv6.[ch]        # Custom ICMPv6 messages
+├── raw_socket.[ch]        # Raw socket interface
+others
+├── lwipopts.h             # LwIP configuration
+├── lwip/                  # Modified LwIP library
+├── Makefile               # Build configuration
+├── LICENSE                # AGPLv3 license
+└── dtn_storage/           # Packet storage directory
 ```
 
-As described, a lwipopts.h file must be created for each lwIP project, specifying the features that are needed or not needed.
-The opt.h, containing all possible features and parameters to lwIP can be found, as mentioned under lwip/src/include/lwip/opt.h.
+## CUSTOM ICMPV6 MESSAGES
+
+| 200 | DTN-PCK-RECEIVED | Packet received by DTN node |
+| 201 | DTN-PCK-FORWARDED | Packet forwarded to next hop |
+| 202 | DTN-PCK-DELIVERED | Packet reached final destination |
+| 203 | DTN-PCK-DELETED | Packet deleted from storage |
 
 ## AUTHORS
-* Michael Karpov michael.karpov@estudiantat.upc.edu — Initial author and main developer
-* Anna Calveras anna.calveras@upc.edu — Project supervisor
 
+- Michael Karpov <michael.karpov@estudiantat.upc.edu> — Initial author and main developer
+- Anna Calveras <anna.calveras@upc.edu> — Project supervisor
 
 ## FUNDING
 
 This research was funded in part by the Spanish MCIU/AEI/10.13039/501100011033/ FEDER/UE through project PID2023-146378NB-I00, and by Secretaria d'Universitats i Recerca del departament d'Empresa i Coneixement de la Generalitat de Catalunya with the grant number 2021 SGR 00330
+
+## LICENSE
+
+This project is licensed under the GNU Affero General Public License Version 3 (AGPLv3). See the `LICENSE` file for details.
+
+### Third-Party Components
+
+**Modified LwIP Library:**
+- This project includes a modified version of the LwIP (Lightweight IP) library
+- Original LwIP is Copyright (c) 2001, 2002 Swedish Institute of Computer Science under a BSD License
+- Modification adds the configurable option (IP FORWARD ALLOW TX ON RX NETIF) to ip6.c.
+
+## ACKNOWLEDGEMENTS
+
+This implementation is based on the paper "Leveraging IPv6 and ICMPv6 for Delay-Tolerant Networking in Deep Space" published in Technologies 2025, 13, 163. https://www.mdpi.com/2227-7080/13/4/163
