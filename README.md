@@ -34,10 +34,10 @@ sudo ./lwip_tun
 
 The current configuration is set to run on a node with the following characteristics:
 
-– fd00:01::2 (enp0s9) — Interface connecting to a neighbor Node
-– fd00:12::1 (enp0s8) — Interface connecting to another neighbor Node
-– fd00::1 (tun0) — TUN interface for kernel-userspace communication
-– fd00::2 — lwIP/DTN userspace address
+- fd00:01::2 (enp0s9) — Interface connecting to a neighbor Node
+- fd00:12::1 (enp0s8) — Interface connecting to another neighbor Node
+- fd00::1 (tun0) — TUN interface for kernel-userspace communication
+- fd00::2 — lwIP/DTN userspace address
 - Two raw sockets connected to interfaces enp0s8 and enp0s9
 - Scheduled contact for a node with address fd00:33::2
 
