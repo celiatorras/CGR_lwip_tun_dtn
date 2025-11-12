@@ -51,8 +51,9 @@
 #define TUN_IFNAME "tun0"
 #define PACKET_BUF_SIZE 2048
 #define HOST_TUN_IPV6_ADDR "fd00::1"
-#define CONTACT_CHECK_INTERVAL_MS 1000
+#define CONTACT_CHECK_INTERVAL_MS 1000 //cada 1segon mirem si hi ha contactes actius
 
+//punter que conté el mòdul DT amb controlador, routing i storage
 DTN_Module* global_dtn_module = NULL;
 
 int tun_alloc(char *dev_name, int max_len);
@@ -61,6 +62,7 @@ err_t tunif_input(struct netif *netif);
 err_t tunif_ip6_output(struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr);
 err_t tunif_init(struct netif *netif);
 
+//crea una interfície TUN i retorna un file descriptor que permert llegir i escriure paquets IPv6 
 int tun_alloc(char *dev_name, int max_len) {
     struct ifreq ifr;
     int fd = open("/dev/net/tun", O_RDWR);
@@ -70,9 +72,12 @@ int tun_alloc(char *dev_name, int max_len) {
     if (dev_name && *dev_name) { strncpy(ifr.ifr_name, dev_name, IFNAMSIZ); ifr.ifr_name[IFNAMSIZ - 1] = '\0'; }
     if (ioctl(fd, TUNSETIFF, (void *)&ifr) < 0) { perror("ioctl(TUNSETIFF)"); close(fd); return -1; }
     strncpy(dev_name, ifr.ifr_name, max_len); dev_name[max_len - 1] = '\0';
+    printf("FILE DESCRIPTOR");
     return fd;
 }
 
+//s'executa quan LwIP vol enviar un paquet
+//escriu el paquet al file descriptor del TUN i retorna si s'ha pogut escriure o no
 err_t tunif_output(struct netif *netif, struct pbuf *p) {
     if (!netif || !netif->state || !p) { return ERR_ARG; }
     int tun_fd = *(int *)netif->state; 
@@ -97,13 +102,13 @@ err_t tunif_input(struct netif *netif) {
      if (!netif || !netif->state) { return ERR_ARG; }
      if (!global_dtn_module || !global_dtn_module->controller) {
          fprintf(stderr, "tunif_input: DTN Module or Controller not initialized!\n");
-         char discard_buf[100];
+         char discard_buf[100]; //buffer temporal per drenar dades del TUN
          read(*(int *)netif->state, discard_buf, sizeof(discard_buf));
          return ERR_IF;
      }
 
-     int tun_fd = *(int *)netif->state;
-     char buf[PACKET_BUF_SIZE];
+     int tun_fd = *(int *)netif->state; //extreu el file-descriptor del TUN guardat prèviament a netif->state
+     char buf[PACKET_BUF_SIZE]; //buffer temporal on llegirem bytes del TUN
      ssize_t len = read(tun_fd, buf, sizeof(buf));
 
      if (len < 0) { if (errno == EAGAIN || errno == EWOULDBLOCK) { return ERR_OK; } perror("TUN read error"); return ERR_IF; }
@@ -112,18 +117,23 @@ err_t tunif_input(struct netif *netif) {
      struct pbuf *p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
      if (!p) { fprintf(stderr, "Failed to allocate pbuf for incoming packet of size %zd\n", len); return ERR_MEM; }
 
+     //pbuf_take copia len bytes des de buf cap a la cadena de pbuf(s) p. És l’equivalent a memcpy però gestionant si p està fragmentat.
      err_t copy_err = pbuf_take(p, buf, len);
      if (copy_err != ERR_OK) { fprintf(stderr, "Failed to copy buffer to pbuf (%d)\n", copy_err); pbuf_free(p); return copy_err; }
 
+     //atorga el paquet al controller per processament 
      dtn_controller_process_incoming(global_dtn_module->controller, p, netif);
      return ERR_OK;
 }
 
+//s’utilitza quan la pila LwIP vol enviar un paquet IPv6; simplement delega l’enviament al linkoutput
 err_t tunif_ip6_output(struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr) {
     LWIP_UNUSED_ARG(ipaddr);
     return netif->linkoutput(netif, p);
 }
 
+//s’utilitza en la creació de la interfície dins LwIP; 
+//configura noms, callbacks i paràmetres bàsics perquè la interfície funcioni correctament
 err_t tunif_init(struct netif *netif) {
     if (!netif) { return ERR_ARG; }
     netif->name[0] = 't'; netif->name[1] = 'n';
@@ -137,6 +147,7 @@ err_t tunif_init(struct netif *netif) {
 
 
 int main() {
+    //inicialitza la pila LwIP
     lwip_init();
 
     // Create DTN storage directory if it doesn't exist
@@ -149,12 +160,14 @@ int main() {
         }
     }
 
+    //inicialitza el mòdul DTN complet
     global_dtn_module = dtn_module_init(); 
     if (!global_dtn_module) {
          fprintf(stderr, "Failed to initialize DTN Module\n");
          exit(EXIT_FAILURE);
     }
 
+    //Prepara la struct que descriu la interfície virtual (netif en LwIP)
     struct netif tun_netif; 
     memset(&tun_netif, 0, sizeof(tun_netif));
 
@@ -170,6 +183,7 @@ int main() {
     }
     printf("TUN device '%s' created successfully (fd: %d).\n", tun_name, tun_fd);
 
+    //inicialització del raw socket
     if (raw_socket_init("enp0s8", "enp0s9") < 0) {
         fprintf(stderr, "Failed to initialize raw sockets\n");
         netif_remove(&tun_netif);
@@ -303,10 +317,11 @@ int main() {
             if (tunif_input(&tun_netif) == ERR_CONN) { fprintf(stderr, "TUN connection closed. Exiting.\n"); break; }
         }
 
-
+        /* Function that shows us if any contacts' state has changed
         if (global_dtn_module && global_dtn_module->routing) {
             dtn_routing_update_contacts(global_dtn_module->routing);
         }
+        */
 
         if (global_dtn_module && global_dtn_module->controller) {
              dtn_controller_attempt_forward_stored(global_dtn_module->controller, &tun_netif);
