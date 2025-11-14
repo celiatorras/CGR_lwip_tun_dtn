@@ -317,11 +317,11 @@ int main() {
             if (tunif_input(&tun_netif) == ERR_CONN) { fprintf(stderr, "TUN connection closed. Exiting.\n"); break; }
         }
 
-        /* Function that shows us if any contacts' state has changed
+        //Function that shows us if any contacts' state has changed
         if (global_dtn_module && global_dtn_module->routing) {
             dtn_routing_update_contacts(global_dtn_module->routing);
         }
-        */
+        
 
         if (global_dtn_module && global_dtn_module->controller) {
              dtn_controller_attempt_forward_stored(global_dtn_module->controller, &tun_netif);

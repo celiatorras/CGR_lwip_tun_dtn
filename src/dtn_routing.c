@@ -35,19 +35,17 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
     if (routing) {
         routing->parent_module = parent;
         routing->routing_algorithm_name = "Contact Graph Routing";
-        //routing->contact_list_head = NULL; //inicialitza llista buida
+        routing->contact_list_head = NULL; //inicialitza llista buida
         
         printf("DTN Routing Function created. Mode: %s\n", routing->routing_algorithm_name);
         
-        /* DEFAULT CONTACT
-        ip6_addr_t target_node, next_hop;
-        if (ip6addr_aton(TARGET_DTN_NODE_ADDR, &target_node)) {
-            ip6_addr_copy(next_hop, target_node); 
-            dtn_routing_add_contact(routing, &target_node, &next_hop, 
-                                  sys_now() + 15000, // Start in 15 seconds
-                                  sys_now() + 3600000, // End in 1 hour
-                                  true);
-        }*/
+        //We save the contacts from the contact plan in the contact_list_head
+        const char *contacts_file = "../py_cgr/contact_plans/cgr_tutorial_1.txt";
+        int nloaded = dtn_routing_load_contacts(routing, contacts_file);
+        if (nloaded < 0) {
+            fprintf(stderr, "DTN Routing: error carregant contact plan %s\n", contacts_file);
+        }
+
     } else {
         perror("Failed to allocate memory for Routing_Function");
     }
@@ -55,7 +53,7 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
 }
 
 // no changes needed --> not used
-/*bool dtn_routing_has_active_contact(Routing_Function* routing, const ip6_addr_t* dest_ip) {
+bool dtn_routing_has_active_contact(Routing_Function* routing, const ip6_addr_t* dest_ip) {
     if (!routing || !dest_ip) {
         return false;
     }
@@ -84,10 +82,10 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
     }
     
     return false;
-}*/
+}
 
 // no changes needed
-/*void dtn_routing_destroy(Routing_Function* routing) {
+void dtn_routing_destroy(Routing_Function* routing) {
     if (!routing) return;
     
     printf("Destroying DTN Routing Function...\n");
@@ -101,10 +99,9 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
     }
     
     free(routing);
-}*/
+}
 
 // only used in the inicialization of the module
-/*
 int dtn_routing_add_contact(Routing_Function* routing, 
                           const ip6_addr_t* node_addr, 
                           const ip6_addr_t* next_hop,
@@ -150,9 +147,9 @@ int dtn_routing_add_contact(Routing_Function* routing,
     
     return 1;
 }
-*/
+
 //not used
-/*int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node_addr) {
+int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node_addr) {
     if (!routing || !node_addr || !routing->contact_list_head) return 0;
     
     Contact_Info* current = routing->contact_list_head;
@@ -181,10 +178,10 @@ int dtn_routing_add_contact(Routing_Function* routing,
     }
     
     return 0; // Contact not found
-}*/
+}
 
 // no chanches needed
-/*void dtn_routing_update_contacts(Routing_Function* routing) {
+void dtn_routing_update_contacts(Routing_Function* routing) {
     if (!routing) return;
     
     static u32_t last_check_time = 0;
@@ -226,9 +223,9 @@ int dtn_routing_add_contact(Routing_Function* routing,
     }
     
     last_check_time = current_time;
-}*/
+}
 
-// no changes needed, do we need contact_list_head?
+// no changes needed
 bool dtn_routing_is_dtn_destination(Routing_Function* routing, const ip6_addr_t* dest_ip_in) {
     if (!routing || !dest_ip_in) {
         return false;
@@ -471,7 +468,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, ip6_ u32_t* v_tc_fl,
     */
 }
 
-//AUX FUNCTIONS FOR CGR
+//AUX FUNCTIONS FOR CGR AND LOAD CONTACTS FROM FILE
 int ip6_addr_to_str(const ip6_addr_t *a, char *buf, size_t buflen) {
     if (!a || !buf) return -1;
     unsigned char tmp[16];
@@ -518,6 +515,7 @@ int nodeid_to_ipv6(long node_id, ip6_addr_t *out) {
 
     const char *addr_txt = NULL;
     switch (node_id) {
+        case 1: addr_txt = "fd00:01::1"; break
         case 2: addr_txt = "fd00:01::2"; break;
         case 3: addr_txt = "fd00:12::2"; break;
         case 4: addr_txt = "fd00:23::3"; break;
@@ -537,4 +535,111 @@ int nodeid_to_ipv6(long node_id, ip6_addr_t *out) {
         out->addr[i] = ntohl(w);
     }
     return 0;
+}
+
+int dtn_routing_load_contacts(Routing_Function* routing, const char* filename) {
+    if (!routing || !filename) return -1;
+
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        fprintf(stderr, "DTN Routing: failed to open contact file '%s': %s\n", filename, strerror(errno));
+        return -1;
+    }
+
+    char line[512];
+    int loaded = 0;
+
+    while (fgets(line, sizeof(line), f)) {
+        // trim leading spaces
+        char *p = line;
+        while (*p && isspace((unsigned char)*p)) p++;
+
+        if (*p == '\0' || *p == '#') continue; // ignorar comentaris i línies buides
+
+        // tokenització simplificada: copiem tokens a un array
+        char tok[8][64];
+        int ntok = 0;
+        char *s = p;
+        while (ntok < 8) {
+            // skip spaces
+            while (*s && isspace((unsigned char)*s)) s++;
+            if (!*s || *s == '\n' || *s == '\r') break;
+            // read token
+            int i = 0;
+            while (*s && !isspace((unsigned char)*s) && i < 63) {
+                tok[ntok][i++] = *s++;
+            }
+            tok[ntok][i] = '\0';
+            ntok++;
+        }
+
+        if (ntok < 5) continue; // no hi ha prou informació
+
+        // Busquem els primers dos tokens que comencin amb '+'
+        char *start_tok = NULL, *end_tok = NULL;
+        for (int i = 0; i < ntok; ++i) {
+            if (tok[i][0] == '+') {
+                if (!start_tok) start_tok = tok[i];
+                else if (!end_tok) end_tok = tok[i];
+            }
+        }
+
+        // Busquem els dos primers tokens numèrics curts (from,to)
+        char *from_tok = NULL, *to_tok = NULL;
+        for (int i = 0; i < ntok; ++i) {
+            // considerem numèric si tots els caràcters són dígits i longitud <= 3
+            bool all_digits = true;
+            size_t L = strlen(tok[i]);
+            if (L == 0 || L > 3) continue;
+            for (size_t j = 0; j < L; ++j) if (!isdigit((unsigned char)tok[i][j])) { all_digits = false; break; }
+            if (all_digits) {
+                if (!from_tok) from_tok = tok[i];
+                else if (!to_tok) to_tok = tok[i];
+            }
+        }
+
+        if (!start_tok || !end_tok || !from_tok || !to_tok) {
+            // línia incompleta, la ignorem
+            continue;
+        }
+
+        int start_sec = 0, end_sec = 0;
+        if (sscanf(start_tok, "+%d", &start_sec) != 1) continue;
+        if (sscanf(end_tok,   "+%d", &end_sec)   != 1) continue;
+
+        u32_t start_ms = (u32_t)start_sec * 1000;
+        u32_t end_ms   = (u32_t)end_sec   * 1000;
+
+        // converteix tokens a node ids segons la regla token -> atoi(token) + 1
+        long from_node = (long) atoi(from_tok)
+        long to_node   = (long) atoi(to_tok)
+
+        if (from_node < 0 || to_node < 0) {
+            fprintf(stderr, "DTN Routing: bad node token from='%s' to='%s' (skipping)\n", from_tok, to_tok);
+            continue;
+        }
+
+        ip6_addr_t from_ip6, to_ip6;
+        if (nodeid_to_ipv6(from_node, &from_ip6) != 0) {
+            fprintf(stderr, "DTN Routing: nodeid_to_ipv6 failed for node %ld (from token '%s'), skipping\n", from_node, from_tok);
+            continue;
+        }
+        if (nodeid_to_ipv6(to_node, &to_ip6) != 0) {
+            fprintf(stderr, "DTN Routing: nodeid_to_ipv6 failed for node %ld (to token '%s'), skipping\n", to_node, to_tok);
+            continue;
+        }
+
+        #if LWIP_IPV6_SCOPES
+            ip6_addr_set_zone(&from_node, IP6_NO_ZONE);
+            ip6_addr_set_zone(&to_node, IP6_NO_ZONE);
+        #endif
+
+        // Afegim el contacte: node_addr = 'to', next_hop = 'from'
+        int added = dtn_routing_add_contact(routing, &to_ip6, &from_ip6, start_ms, end_ms, true);
+        if (added) loaded++;
+    }
+
+    fclose(f);
+    printf("DTN Routing: Loaded %d contacts from %s\n", loaded, filename);
+    return loaded;
 }

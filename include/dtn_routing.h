@@ -35,7 +35,7 @@ typedef struct Routing_Function {
     DTN_Module* parent_module;
     char* routing_algorithm_name;
     
-    //Contact_Info* contact_list_head; // not necessary?
+    Contact_Info* contact_list_head; // not necessary?
 } Routing_Function;
 
 Routing_Function* dtn_routing_create(DTN_Module* parent);
@@ -44,7 +44,7 @@ void dtn_routing_destroy(Routing_Function* routing);
 
 bool dtn_routing_is_dtn_destination(Routing_Function* routing, const ip6_addr_t* dest_ip);
 
-int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t v_tc_fl*, u16_t plen*, u8_t hoplim*, ip6_ ip6_addr_t* dest_ip, ip6_addr_t* next_hop_ip);
+int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_t* plen, u8_t* hoplim, ip6_addr_t* dest_ip, ip6_addr_t* next_hop_ip);
 
 int dtn_routing_add_contact(Routing_Function* routing, 
                           const ip6_addr_t* node_addr, 
