@@ -35,7 +35,7 @@ typedef struct Routing_Function {
     DTN_Module* parent_module;
     char* routing_algorithm_name;
     
-    Contact_Info* contact_list_head; // not necessary?
+    Contact_Info* contact_list_head;
 } Routing_Function;
 
 Routing_Function* dtn_routing_create(DTN_Module* parent);
@@ -58,5 +58,13 @@ int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node
 void dtn_routing_update_contacts(Routing_Function* routing);
 
 bool dtn_routing_has_active_contact(Routing_Function* routing, const ip6_addr_t* dest_ip);
+
+int ip6_addr_to_str(const ip6_addr_t *a, char *buf, size_t buflen);
+
+long ipv6_to_nodeid(const char *ip6);
+
+int nodeid_to_ipv6(long node_id, ip6_addr_t *out);
+
+int dtn_routing_load_contacts(Routing_Function* routing, const char* filename);
 
 #endif

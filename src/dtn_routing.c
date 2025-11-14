@@ -30,12 +30,13 @@
 #define CURR_NODE_ADDR "fd00:01::1"
 #define MAX_LENGTH 5000
 
+// necessary changes made
 Routing_Function* dtn_routing_create(DTN_Module* parent) {
     Routing_Function* routing = (Routing_Function*)malloc(sizeof(Routing_Function));
     if (routing) {
         routing->parent_module = parent;
         routing->routing_algorithm_name = "Contact Graph Routing";
-        routing->contact_list_head = NULL; //inicialitza llista buida
+        routing->contact_list_head = NULL; 
         
         printf("DTN Routing Function created. Mode: %s\n", routing->routing_algorithm_name);
         
@@ -43,45 +44,13 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
         const char *contacts_file = "../py_cgr/contact_plans/cgr_tutorial_1.txt";
         int nloaded = dtn_routing_load_contacts(routing, contacts_file);
         if (nloaded < 0) {
-            fprintf(stderr, "DTN Routing: error carregant contact plan %s\n", contacts_file);
+            fprintf(stderr, "DTN Routing: error loading contact plan %s\n", contacts_file);
         }
 
     } else {
         perror("Failed to allocate memory for Routing_Function");
     }
     return routing;
-}
-
-// no changes needed --> not used
-bool dtn_routing_has_active_contact(Routing_Function* routing, const ip6_addr_t* dest_ip) {
-    if (!routing || !dest_ip) {
-        return false;
-    }
-    
-    u32_t current_time = sys_now();
-    
-    // Iterate through all contacts
-    Contact_Info* contact = routing->contact_list_head;
-    while (contact != NULL) {
-        if (contact->is_dtn_node) {
-            ip6_addr_t contact_addr_nozone = contact->node_addr;
-            ip6_addr_t dest_ip_nozone = *dest_ip;
-            
-#if LWIP_IPV6_SCOPES
-            ip6_addr_set_zone(&contact_addr_nozone, IP6_NO_ZONE);
-            ip6_addr_set_zone(&dest_ip_nozone, IP6_NO_ZONE);
-#endif
-            
-            if (ip6_addr_cmp(&contact_addr_nozone, &dest_ip_nozone) &&
-                current_time >= contact->start_time_ms && 
-                current_time <= contact->end_time_ms) {
-                return true;
-            }
-        }
-        contact = contact->next;
-    }
-    
-    return false;
 }
 
 // no changes needed
@@ -101,7 +70,7 @@ void dtn_routing_destroy(Routing_Function* routing) {
     free(routing);
 }
 
-// only used in the inicialization of the module
+// no changes needed, function used to load contacts into contact_list
 int dtn_routing_add_contact(Routing_Function* routing, 
                           const ip6_addr_t* node_addr, 
                           const ip6_addr_t* next_hop,
@@ -148,7 +117,7 @@ int dtn_routing_add_contact(Routing_Function* routing,
     return 1;
 }
 
-//not used
+// not used
 int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node_addr) {
     if (!routing || !node_addr || !routing->contact_list_head) return 0;
     
@@ -180,12 +149,12 @@ int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node
     return 0; // Contact not found
 }
 
-// no chanches needed
+// no chanches needed, funciton used only to print any changes in the contacts' state
 void dtn_routing_update_contacts(Routing_Function* routing) {
     if (!routing) return;
     
     static u32_t last_check_time = 0;
-    static bool last_active_states[10] = {false};
+    static bool last_active_states[15] = {false};
     static int contact_index = 0;
     
     u32_t current_time = sys_now();
@@ -275,7 +244,7 @@ bool dtn_routing_is_dtn_destination(Routing_Function* routing, const ip6_addr_t*
 - current node (const previously defined)
 - destination address
 */
-int dtn_routing_get_dtn_next_hop(Routing_Function* routing, ip6_ u32_t* v_tc_fl, ip6_ u16_t* plen, ip6_ u8_t* hoplim, ip6_ ip6_addr_t* dest_ip, ip6_addr_t* next_hop_ip) {
+int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_t* plen, u8_t* hoplim, ip6_addr_t* dest_ip, ip6_addr_t* next_hop_ip) {
     if (!routing || !v_tc_fl || !plen || !hoplim || !dest_ip || !next_hop_ip) {
         fprintf(stderr, "DTN Routing: Invalid arguments to get_dtn_next_hop.\n");
         return 0;
@@ -290,7 +259,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, ip6_ u32_t* v_tc_fl,
         return 0;
     }
 
-    ip6_addr_t local; //current node we need in ip6 address format
+    ip6_addr_t local;
     // local node id to address format instead of string
     unsigned char tmpbuf[16];
     if (inet_pton(AF_INET6, CURR_NODE_ADDR , tmpbuf) != 1) {
@@ -345,7 +314,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, ip6_ u32_t* v_tc_fl,
 
     // cgr_yen
     long curr_node_id = ipv6_to_nodeid(CURR_NODE_ADDR);
-    long dest_node_id   = ipv6_to_nodeid(dst_s);
+    long dest_node_id = ipv6_to_nodeid(dst_s);
 
     // to use python functions we need time in double format
     u32_t current_time = sys_now(); // in milliseconds
@@ -423,49 +392,6 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, ip6_ u32_t* v_tc_fl,
     Py_DECREF(pModule);
     Py_Finalize();
     return 0;
-
-    /*
-    // Find contact --> this should be done after we know if there is a next hop availabe 
-    //per implementar aquesta funció s'hauria de guardar la informació del contacte que s'ha triat per 
-    //el next hop, i després assignar la zona a les adreces de destí i del next hop
-    Contact_Info* contact = routing->contact_list_head;
-    u32_t current_time = sys_now();
-    
-    while (contact != NULL) {
-        ip6_addr_t contact_addr_nozone = contact->node_addr;
-        ip6_addr_t dest_addr_nozone = *dest_ip;
-        
-#if LWIP_IPV6_SCOPES
-        ip6_addr_set_zone(&contact_addr_nozone, IP6_NO_ZONE);
-        ip6_addr_set_zone(&dest_addr_nozone, IP6_NO_ZONE);
-#endif
-        
-        if (ip6_addr_cmp(&contact_addr_nozone, &dest_addr_nozone)) {
-            // Contact is currently active?
-            if (current_time >= contact->start_time_ms && current_time <= contact->end_time_ms) {
-                char dest_addr_str[IP6ADDR_STRLEN_MAX];
-                ip6addr_ntoa_r(dest_ip, dest_addr_str, sizeof(dest_addr_str));
-                printf("DTN Routing: Contact AVAILABLE for DTN destination %s. Providing next hop.\n", dest_addr_str);
-                ip6_addr_copy(*next_hop_ip, contact->next_hop);
-                return 1;
-            } else {
-                char dest_addr_str[IP6ADDR_STRLEN_MAX];
-                ip6addr_ntoa_r(dest_ip, dest_addr_str, sizeof(dest_addr_str));
-                printf("DTN Routing: Contact EXISTS but NOT ACTIVE for DTN destination %s.\n", dest_addr_str);
-                ip6_addr_set_any(next_hop_ip);
-                return 0;
-            }
-        }
-        contact = contact->next;
-    }
-    
-    // No contact found
-    char dest_addr_str[IP6ADDR_STRLEN_MAX];
-    ip6addr_ntoa_r(dest_ip, dest_addr_str, sizeof(dest_addr_str));
-    printf("DTN Routing: No contact found for %s\n", dest_addr_str);
-    ip6_addr_set_any(next_hop_ip);
-    return 0;
-    */
 }
 
 //AUX FUNCTIONS FOR CGR AND LOAD CONTACTS FROM FILE
@@ -515,7 +441,7 @@ int nodeid_to_ipv6(long node_id, ip6_addr_t *out) {
 
     const char *addr_txt = NULL;
     switch (node_id) {
-        case 1: addr_txt = "fd00:01::1"; break
+        case 1: addr_txt = "fd00:01::1"; break;
         case 2: addr_txt = "fd00:01::2"; break;
         case 3: addr_txt = "fd00:12::2"; break;
         case 4: addr_txt = "fd00:23::3"; break;
@@ -611,8 +537,8 @@ int dtn_routing_load_contacts(Routing_Function* routing, const char* filename) {
         u32_t end_ms   = (u32_t)end_sec   * 1000;
 
         // converteix tokens a node ids segons la regla token -> atoi(token) + 1
-        long from_node = (long) atoi(from_tok)
-        long to_node   = (long) atoi(to_tok)
+        long from_node = (long) atoi(from_tok);
+        long to_node = (long) atoi(to_tok);
 
         if (from_node < 0 || to_node < 0) {
             fprintf(stderr, "DTN Routing: bad node token from='%s' to='%s' (skipping)\n", from_tok, to_tok);

@@ -1,5 +1,9 @@
 CC = gcc
 
+# Afegeix aquí includes de python amb python3-config
+PY_INCLUDES := $(shell python3-config --includes)
+PY_LDFLAGS  := $(shell python3-config --ldflags)
+
 CFLAGS = -Wall \
 	-DNO_SYS=1 \
 	-I./ \
@@ -7,7 +11,11 @@ CFLAGS = -Wall \
 	-I./include \
 	-Ilwip/include \
 	-Ilwip/src/include \
-	-Ilwip/contrib/addons/ipv6_static_routing
+	-Ilwip/contrib/addons/ipv6_static_routing \
+	$(PY_INCLUDES)
+
+# LDFLAGS per a l'enllaç final (inclou python ldflags)
+LDFLAGS = $(PY_LDFLAGS)
 
 LWIP_SRC = \
 	lwip/src/core/mem.c \
