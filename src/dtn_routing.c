@@ -302,25 +302,26 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         return 1;
     }
 
+    // to use python functions we need time in double format
+    u32_t current_time = sys_now(); // in milliseconds
+    double curr_time = ((double) current_time)/1000;
+
     PyObject *py_cp_load = PyObject_GetAttrString(pModule, "cp_load");
     PyObject *py_cgr_yen = PyObject_GetAttrString(pModule, "cgr_yen");
     PyObject *py_fwd_candidate = PyObject_GetAttrString(pModule, "fwd_candidate");
     PyObject *py_ipv6_packet = PyObject_GetAttrString(pModule, "ipv6_packet");
 
     // cp_load
-    PyObject *args_load = PyTuple_New(2);
+    PyObject *args_load = PyTuple_New(3);
     PyTuple_SetItem(args_load, 0, PyUnicode_FromString("py_cgr/contact_plans/cgr_tutorial_1.txt"));
     PyTuple_SetItem(args_load, 1, PyLong_FromLong(MAX_LENGTH));
+    PyTuple_SetItem(args_load, 2, PyFloat_FromDouble(curr_time));
     PyObject *contact_plan = PyObject_CallObject(py_cp_load, args_load);
     Py_DECREF(args_load);
 
     // cgr_yen
     long curr_node_id = ipv6_to_nodeid(CURR_NODE_ADDR);
     long dest_node_id = ipv6_to_nodeid(dst_s);
-
-    // to use python functions we need time in double format
-    u32_t current_time = sys_now(); // in milliseconds
-    double curr_time = ((double) current_time)/1000;
 
     PyObject *args_yen = PyTuple_New(5);
     PyTuple_SetItem(args_yen, 0, PyLong_FromLong(curr_node_id));
@@ -409,7 +410,7 @@ int ip6_addr_to_str(const ip6_addr_t *a, char *buf, size_t buflen) {
     if (!a || !buf) return -1;
     unsigned char tmp[16];
     for (int i = 0; i < 4; ++i) {
-        uint32_t w = htonl(a->addr[i]);
+        uint32_t w = ntohl(a->addr[i]);
         tmp[i*4 + 0] = (w >> 24) & 0xFF;
         tmp[i*4 + 1] = (w >> 16) & 0xFF;
         tmp[i*4 + 2] = (w >> 8 ) & 0xFF;
@@ -571,7 +572,7 @@ int dtn_routing_load_contacts(Routing_Function* routing, const char* filename) {
         #endif
 
         // Afegim el contacte: node_addr = 'to', next_hop = 'from'
-        int added = dtn_routing_add_contact(routing, &to_ip6, &from_ip6, start_ms, end_ms, true);
+        int added = dtn_routing_add_contact(routing, &to_ip6, &from_ip6, start_ms + sys_now(), end_ms + sys_now(), true);
         if (added) loaded++;
     }
 

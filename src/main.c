@@ -159,7 +159,7 @@ int main() {
             exit(EXIT_FAILURE);
         }
     }
-
+    
     //inicialitza el mòdul DTN complet
     global_dtn_module = dtn_module_init(); 
     if (!global_dtn_module) {
