@@ -427,6 +427,44 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     PyTuple_SetItem(args_fwd, 4, routes);
     PyTuple_SetItem(args_fwd, 5, excluded_nodes);
     PyObject *candidates = PyObject_CallObject(py_fwd_candidate, args_fwd);
+    if (candidates) {
+    PyObject *repr_c = PyObject_Repr(candidates);
+    const char *sc = PyUnicode_AsUTF8(repr_c);
+    fprintf(stderr, "[DBG] candidates repr: %s\n", sc? sc : "<NULL>");
+    Py_XDECREF(repr_c);
+        if (PyList_Check(candidates)) {
+            long n = PyList_Size(candidates);
+            fprintf(stderr, "[DBG] candidates length: %ld\n", n);
+            for (long i = 0; i < n; ++i) {
+                PyObject *it = PyList_GetItem(candidates, i); // borrowed
+                PyObject *repr_it = PyObject_Repr(it);
+                const char *si = PyUnicode_AsUTF8(repr_it);
+                fprintf(stderr, "[DBG] candidate[%ld] repr: %s\n", i, si? si : "<NULL>");
+                Py_XDECREF(repr_it);
+
+                // try to print next_node attr if present
+                PyObject *pNextNode = PyObject_GetAttrString(it, "next_node");
+                if (pNextNode) {
+                    if (pNextNode == Py_None) {
+                        fprintf(stderr, "[DBG] candidate[%ld] next_node = None\n", i);
+                    } else if (PyLong_Check(pNextNode)) {
+                        fprintf(stderr, "[DBG] candidate[%ld] next_node = %ld\n", i, PyLong_AsLong(pNextNode));
+                    } else {
+                        fprintf(stderr, "[DBG] candidate[%ld] next_node has non-int type (%s)\n", i, pNextNode->ob_type->tp_name);
+                    }
+                    Py_DECREF(pNextNode);
+                } else {
+                    PyErr_Clear();
+                    fprintf(stderr, "[DBG] candidate[%ld] has no next_node\n", i);
+                }
+            }
+        } else {
+            fprintf(stderr, "[DBG] candidates is not a list (type=%s)\n", candidates->ob_type->tp_name);
+        }
+    } else {
+        fprintf(stderr, "[DBG] candidates is NULL\n");
+        PyErr_Print();
+    }
     Py_DECREF(args_fwd);
 
     //we check the next hop for the best route
