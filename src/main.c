@@ -126,14 +126,11 @@ err_t tunif_input(struct netif *netif) {
      return ERR_OK;
 }
 
-//s’utilitza quan la pila LwIP vol enviar un paquet IPv6; simplement delega l’enviament al linkoutput
 err_t tunif_ip6_output(struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr) {
     LWIP_UNUSED_ARG(ipaddr);
     return netif->linkoutput(netif, p);
 }
 
-//s’utilitza en la creació de la interfície dins LwIP; 
-//configura noms, callbacks i paràmetres bàsics perquè la interfície funcioni correctament
 err_t tunif_init(struct netif *netif) {
     if (!netif) { return ERR_ARG; }
     netif->name[0] = 't'; netif->name[1] = 'n';
@@ -318,12 +315,12 @@ int main() {
         }
 
         //Function that shows us if any contacts' state has changed
+        bool cont = false;
         if (global_dtn_module && global_dtn_module->routing) {
-            dtn_routing_update_contacts(global_dtn_module->routing);
+            cont = dtn_routing_update_contacts(global_dtn_module->routing);
         }
         
-
-        if (global_dtn_module && global_dtn_module->controller) {
+        if (global_dtn_module && global_dtn_module->controller && cont) {
              dtn_controller_attempt_forward_stored(global_dtn_module->controller, &tun_netif);
         }
     }

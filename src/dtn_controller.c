@@ -67,8 +67,6 @@ void dtn_controller_destroy(DTN_Controller *controller)
     free(controller);
 }
 
-//satic--> funció interna
-//comprova si val la pena reenviar un paquet a un destí segons quants cops ha sigut intentat enviar
 static bool should_attempt_forward(DTN_Controller *controller, const ip6_addr_t *dest_addr)
 {
     u32_t current_time = sys_now();
@@ -190,7 +188,7 @@ int dtn_controller_process_icmpv6(DTN_Controller *controller, struct pbuf *p, st
     return dtn_icmpv6_process(p, inp_netif);
 }
 
-//FUNCIÓ PRINCIPAL DEL CONTROLADOR
+//MAIN FUNCTION
 void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p, struct netif *inp_netif)
 {
     if (!p || !controller || !controller->parent_module ||
@@ -202,7 +200,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         return;
     }
 
-    //Assegura que el pbuf té com a mínim la longitud del header IPv6
     if (p->len < IP6_HLEN)
     {
         fprintf(stderr, "DTN Controller: Packet too small for IPv6 header.\n");
@@ -210,7 +207,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         return;
     }
 
-    //mirem que sigui versió ipv6
     const struct ip6_hdr *ip6hdr = (const struct ip6_hdr *)p->payload;
     if (IP6H_V(ip6hdr) != 6)
     {
@@ -219,8 +215,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         return;
     }
 
-    //extraiem adreces origen i destí, version + tc + fl, payload length i hop limit
-    // per treballar amb elles sente tocar el pbuf
+    //changed
     ip6_addr_t temp_src_addr, temp_dest_addr;
     u32_t temp_v_tc_fl;
     u16_t temp_plen;
@@ -231,8 +226,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
     memcpy(&temp_plen, &ip6hdr->_plen, sizeof(u16_t));
     memcpy(&temp_hoplim, &ip6hdr->_hoplim, sizeof(u8_t));
 
-
-    //agafem punters als submòduls routing i storage
     Routing_Function *routing = controller->parent_module->routing;
     Storage_Function *storage = controller->parent_module->storage;
 
@@ -286,7 +279,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         ip6_addr_set_zone(&dest_addr_nozone, IP6_NO_ZONE);
         ip6_addr_set_zone(&local_lwip_addr, IP6_NO_ZONE);
 #endif
-        //això està hardcodificat (inp_netif->ip6_addr[i])
         if (ip6_addr_cmp(&dest_addr_nozone, &local_lwip_addr))
         {
             is_for_this_lwip_stack = true;
@@ -342,7 +334,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
                 pbuf_free(p_copy);
             }
 
-            //intenta enviar el paquet
             ip6_addr_t my_addr = inp_netif->ip6_addr[1];
             dtn_add_custodian_option(&p, &my_addr);
             err_t err = raw_socket_send_ipv6(p, &temp_dest_addr) == 0 ? ERR_OK : ERR_IF;
@@ -353,10 +344,8 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
             pbuf_free(p);
             return;
         }
-        //no tenim contacte disponible
         else
         {
-            //s'intenta emmagatzemar 
             if (dtn_storage_store_packet(storage, p, &temp_dest_addr))
             {
                 // Create a copy for DTN-PCK-RECEIVED
@@ -372,7 +361,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
                 }
                 return;
             }
-            //falla l'intent d'emmagatzemar
             else
             {
                 fprintf(stderr, "DTN Controller: Failed to store packet (e.g., storage full). Freeing.\n");
@@ -394,7 +382,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
             }
         }
     }
-    //si no és un destí DTN
     else
     {
         err_t err = raw_socket_send_ipv6(p, &temp_dest_addr) == 0 ? ERR_OK : ERR_IF;
@@ -418,105 +405,81 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
     Storage_Function *storage = controller->parent_module->storage;
     Routing_Function *routing = controller->parent_module->routing;
 
-    // Update routing contacts based on current time
-    //dtn_routing_update_contacts(routing);
-
-    // Process all contacts with available storage
-    Contact_Info *contact = routing->contact_list_head;
-    u32_t current_time = sys_now();
-
-    while (contact != NULL)
+    Stored_Packet_Entry *packet = storage->packet_list_head;
+    while (packet != NULL)
     {
-        // If contact is active
-        if (contact->is_dtn_node &&
-            current_time >= contact->start_time_ms &&
-            current_time <= contact->end_time_ms)
-        {
+        const struct ip6_hdr *ip6hdr = (const struct ip6_hdr *)packet->p->payload;
+        ip6_addr_t dest = packet->original_dest;
 
-            // Check if enough time has passed since last attempt
-            if (should_attempt_forward(controller, &contact->node_addr))
-            {
-                // Get a copy of the packet while keeping it in storage
-                Stored_Packet_Entry *packet_copy =
-                    dtn_storage_get_packet_copy_for_dest(storage, &contact->node_addr);
+        u32_t v_tc_fl;
+        u16_t plen;
+        u8_t hoplim;
+        memcpy(&v_tc_fl, &ip6hdr->_v_tc_fl, sizeof(u32_t));
+        memcpy(&plen, &ip6hdr->_plen, sizeof(u16_t));
+        memcpy(&hoplim, &ip6hdr->_hoplim, sizeof(u8_t));
 
-                if (packet_copy && packet_copy->p)
-                {
-                    char node_addr_str[IP6ADDR_STRLEN_MAX];
-                    ip6addr_ntoa_r(&contact->node_addr, node_addr_str, sizeof(node_addr_str));
-                    printf("DTN Controller: Forwarding to %s\n", node_addr_str);
+        ip6_addr_t next_hop_ip;
+        int contact_available = dtn_routing_get_dtn_next_hop(routing, &v_tc_fl, &plen, &hoplim, &dest, &next_hop_ip);
 
-                    char retrieved_dest_str[IP6ADDR_STRLEN_MAX];
-                    ip6addr_ntoa_r(&packet_copy->original_dest, retrieved_dest_str, sizeof(retrieved_dest_str));
-                    struct pbuf *p_to_fwd = packet_copy->p;
+        if (!contact_available) {
+            dtn_storage_free_retrieved_entry_struct(packet);
+            continue;
+        }
 
-                    bool is_for_this_lwip_stack = false;
-                    ip6_addr_t local_lwip_addr;
-                    if (ip6addr_aton("fd00::2", &local_lwip_addr))
-                    {
-                        ip6_addr_t retrieved_dest_nozone;
-                        memcpy(&retrieved_dest_nozone, &packet_copy->original_dest, sizeof(ip6_addr_t));
+        if (!should_attempt_forward(controller, &dest)) {
+            dtn_storage_free_retrieved_entry_struct(packet);
+            continue;
+        }
+
+        struct pbuf *p_to_fwd = packet->p;
+
+        bool is_for_this_lwip_stack = false;
+        ip6_addr_t local_lwip_addr;
+        if (ip6addr_aton("fd00::2", &local_lwip_addr)) {
+            ip6_addr_t dest_nozone = dest;
 #if LWIP_IPV6_SCOPES
-                        ip6_addr_set_zone(&retrieved_dest_nozone, IP6_NO_ZONE);
-                        ip6_addr_set_zone(&local_lwip_addr, IP6_NO_ZONE);
+            ip6_addr_set_zone(&dest_nozone, IP6_NO_ZONE);
+            ip6_addr_set_zone(&local_lwip_addr, IP6_NO_ZONE);
 #endif
-                        if (ip6_addr_cmp(&retrieved_dest_nozone, &local_lwip_addr))
-                        {
-                            is_for_this_lwip_stack = true;
-                        }
-                    }
-
-                    //CAS 1: és per la pila local
-                    if (is_for_this_lwip_stack)
-                    {
-                        // Create a copy of the packet for DTN-PCK-RECEIVED message
-                        struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p_to_fwd->tot_len, PBUF_RAM);
-                        if (p_copy != NULL)
-                        {
-                            if (pbuf_copy(p_copy, p_to_fwd) == ERR_OK)
-                            {
-                                dtn_icmpv6_send_pck_received(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
-                                //dtn_icmpv6_send_pck_delivered(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
-                            }
-                            pbuf_free(p_copy);
-                        }
-
-                        //si ip6_input falla, s'allibera el pbuf
-                        err_t err = ip6_input(p_to_fwd, netif_out);
-                        if (err != ERR_OK)
-                        {
-                            pbuf_free(p_to_fwd);
-                        }
-                    }
-                    //CAS 2: és per un altre node DTN
-                    else
-                    {
-                        // Create a copy of the packet for DTN-PCK-FORWARDED message
-                        struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p_to_fwd->tot_len, PBUF_RAM);
-                        if (p_copy != NULL)
-                        {
-                            if (pbuf_copy(p_copy, p_to_fwd) == ERR_OK)
-                            {
-                                // Send DTN-PCK-FORWARDED message
-                                //dtn_icmpv6_send_pck_forwarded(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
-                            }
-                            pbuf_free(p_copy);
-                        }
-
-                        //Envia el paquet amb raw_socket_send_ipv6, adreçat al contacte actual (contact->node_addr)
-                        ip6_addr_t my_addr = netif_out->ip6_addr[1];
-                        dtn_add_custodian_option(&p_to_fwd, &my_addr);
-                        err_t err = raw_socket_send_ipv6(p_to_fwd, &contact->node_addr) == 0 ? ERR_OK : ERR_IF;
-                        if (err != ERR_OK)
-                        {
-                            fprintf(stderr, "DTN Controller: Error sending stored packet via raw socket: %d.\n", err);
-                        }
-                        pbuf_free(p_to_fwd);
-                    }
-                    dtn_storage_free_retrieved_entry_struct(packet_copy);
-                }
+            if (ip6_addr_cmp(&dest_nozone, &local_lwip_addr)) {
+                is_for_this_lwip_stack = true;
             }
         }
-        contact = contact->next;
+
+        if (is_for_this_lwip_stack) {
+            struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p_to_fwd->tot_len, PBUF_RAM);
+            if (p_copy && pbuf_copy(p_copy, p_to_fwd) == ERR_OK) 
+            {
+                dtn_icmpv6_send_pck_received(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
+            }
+            pbuf_free(p_copy);
+
+            err_t err = ip6_input(p_to_fwd, netif_out);
+            if (err != ERR_OK) 
+            {
+                pbuf_free(p_to_fwd);
+            }
+        } else {
+            struct pbuf *p_copy = pbuf_alloc(PBUF_RAW, p_to_fwd->tot_len, PBUF_RAM);
+            if (p_copy && pbuf_copy(p_copy, p_to_fwd) == ERR_OK) 
+            {
+                //dtn_icmpv6_send_pck_forwarded(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
+            }
+            pbuf_free(p_copy);
+
+            ip6_addr_t my_addr = netif_out->ip6_addr[1];
+            dtn_add_custodian_option(&p_to_fwd, &my_addr);
+
+            err_t err = raw_socket_send_ipv6(p_to_fwd, &next_hop_ip) == 0 ? ERR_OK : ERR_IF;
+            if (err != ERR_OK)
+            {
+                fprintf(stderr, "DTN Controller: Error sending stored packet via raw socket: %d.\n", err);
+            }
+            pbuf_free(p_to_fwd);
+
+        }
+        dtn_controller_remove_tracking(controller, &dest);
+        dtn_storage_free_retrieved_entry_struct(packet);
+        packet = packet->next;
     }
 }

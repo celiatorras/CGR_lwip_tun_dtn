@@ -149,15 +149,17 @@ int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node
     return 0; // Contact not found
 }
 
-// no chanches needed, funciton used only to print any changes in the contacts' state
-void dtn_routing_update_contacts(Routing_Function* routing) {
-    if (!routing) return;
+// modified the print message to include both nodes, funciton used only to print any changes in the contacts' state
+// it returns true if any contact has become active
+bool dtn_routing_update_contacts(Routing_Function* routing) {
+    if (!routing) return false;
     
+    bool ret = false;
     static u32_t last_check_time = 0;
     static bool last_active_states[15] = {false};
     static int contact_index = 0;
     
-    u32_t current_time = sys_now();
+    u32_t current_time = sys_now(); //time when the computer has started
     
     if (last_check_time == 0) {
         last_check_time = current_time;
@@ -173,12 +175,15 @@ void dtn_routing_update_contacts(Routing_Function* routing) {
                           current_time <= contact->end_time_ms);
         
         if (is_active != last_active_states[contact_index]) {
-            char node_addr_str[IP6ADDR_STRLEN_MAX];
+            char node_addr_str[IP6ADDR_STRLEN_MAX], next_hop_str[IP6ADDR_STRLEN_MAX];
             ip6addr_ntoa_r(&contact->node_addr, node_addr_str, sizeof(node_addr_str));
+            ip6addr_ntoa_r(&contact->next_hop, next_hop_str, sizeof(next_hop_str));
             
             if (is_active) {
-                printf("DTN Routing: Contact for %s became AVAILABLE at time %u ms\n", 
-                       node_addr_str, current_time);
+                printf("DTN Routing: Contact from %s to %s became AVAILABLE at time %u ms\n", 
+                       next_hop_str, node_addr_str, current_time);
+                ret = true;
+
             } else {
                 printf("DTN Routing: Contact for %s became UNAVAILABLE at time %u ms\n", 
                        node_addr_str, current_time);
@@ -192,6 +197,7 @@ void dtn_routing_update_contacts(Routing_Function* routing) {
     }
     
     last_check_time = current_time;
+    return ret;
 }
 
 // no changes needed
@@ -264,7 +270,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     unsigned char tmpbuf[16];
     if (inet_pton(AF_INET6, CURR_NODE_ADDR , tmpbuf) != 1) {
         fprintf(stderr, "inet_pton local address failed\n");
-        return 1;
+        return 0;
     }
     for (int i=0;i<4;i++) {
         uint32_t w = (tmpbuf[i*4+0] << 24) | (tmpbuf[i*4+1] << 16) | (tmpbuf[i*4+2] << 8) | (tmpbuf[i*4+3]);
@@ -283,7 +289,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     Py_Initialize();
     if (!Py_IsInitialized()) {
         fprintf(stderr, "Python not initialized\n");
-        return 1;
+        return 0;
     }
     fprintf(stderr, "[DBG] Python initialized OK\n");
 
@@ -297,7 +303,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         fprintf(stderr, "[ERR] ERROR: cannot import py_cgr_lib.py_cgr_lib\n");
         PyErr_Print();
         Py_Finalize();
-        return 1;
+        return 0;
     } else {
         fprintf(stderr, "[DBG] Imported module OK: %p\n", (void*)pModule);
     }
@@ -318,11 +324,11 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     PyTuple_SetItem(args_load, 2, PyLong_FromLong(MAX_LENGTH));
     PyObject *contact_plan = PyObject_CallObject(py_cp_load, args_load);
     if (!contact_plan) {
-    fprintf(stderr, "[ERR] cp_load returned NULL\n");
-    PyErr_Print();
-    Py_DECREF(pModule);
-    Py_Finalize();
-    return 1;
+        fprintf(stderr, "[ERR] cp_load returned NULL\n");
+        PyErr_Print();
+        Py_DECREF(pModule);
+        Py_Finalize();
+        return 0;
     }
     PyObject *repr_cp = PyObject_Repr(contact_plan);
     if (repr_cp) {
@@ -352,12 +358,12 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     PyTuple_SetItem(args_yen, 5, PyLong_FromLong(10)); 
     PyObject *routes = PyObject_CallObject(py_cgr_yen, args_yen);
     if (!routes) {
-    fprintf(stderr, "[ERR] cgr_yen returned NULL\n");
-    PyErr_Print();
-    Py_DECREF(contact_plan);
-    Py_DECREF(pModule);
-    Py_Finalize();
-    return 1;
+        fprintf(stderr, "[ERR] cgr_yen returned NULL\n");
+        PyErr_Print();
+        Py_DECREF(contact_plan);
+        Py_DECREF(pModule);
+        Py_Finalize();
+        return 0;
     }
     PyObject *repr_r = PyObject_Repr(routes);
     if (repr_r) {
@@ -403,7 +409,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         Py_DECREF(contact_plan);
         Py_DECREF(pModule);
         Py_Finalize();
-        return 1;
+        return 0;
     }
     PyObject *repr_pkt = PyObject_Repr(ipv6pkt);
     if (repr_pkt) {
@@ -436,7 +442,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
             long n = PyList_Size(candidates);
             fprintf(stderr, "[DBG] candidates length: %ld\n", n);
             for (long i = 0; i < n; ++i) {
-                PyObject *it = PyList_GetItem(candidates, i); // borrowed
+                PyObject *it = PyList_GetItem(candidates, i);
                 PyObject *repr_it = PyObject_Repr(it);
                 const char *si = PyUnicode_AsUTF8(repr_it);
                 fprintf(stderr, "[DBG] candidate[%ld] repr: %s\n", i, si? si : "<NULL>");
@@ -474,6 +480,10 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         if (pNextNode) {
             if (pNextNode == Py_None) {
                 printf("Next hop: None\n");
+                Py_DECREF(candidates);
+                Py_DECREF(pModule);
+                Py_Finalize();
+                return 0;
             } else if (PyLong_Check(pNextNode)) {
                 long next_node = PyLong_AsLong(pNextNode);
                 ip6_addr_t next_ip;
@@ -496,9 +506,17 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         } else {
             PyErr_Clear();
             printf("Candidate object has no attribute next_node\n");
+            Py_DECREF(candidates);
+            Py_DECREF(pModule);
+            Py_Finalize();
+            return 0;
         }
     } else {
         printf("No candidate routes returned (list empty or not a list)\n");
+        Py_DECREF(candidates);
+        Py_DECREF(pModule);
+        Py_Finalize();
+        return 0;
     }
 
     Py_DECREF(candidates);

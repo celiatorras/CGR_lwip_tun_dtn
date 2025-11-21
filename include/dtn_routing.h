@@ -55,7 +55,7 @@ int dtn_routing_add_contact(Routing_Function* routing,
 
 int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node_addr);
 
-void dtn_routing_update_contacts(Routing_Function* routing);
+bool dtn_routing_update_contacts(Routing_Function* routing);
 
 bool dtn_routing_has_active_contact(Routing_Function* routing, const ip6_addr_t* dest_ip);
 

@@ -529,6 +529,13 @@ def fwd_candidate(curr_time, curr_node, contact_plan, ipv6_packet, routes, exclu
                     print("not candidate: contact in route tx to current node")
                 continue
 
+        # we discard routes not active right now
+        first = route.hops[0]
+        if not (first.start <= curr_time < first.end):
+            if debug:
+                print(f"not candidate: first contact inactive now ")
+            continue
+
         # 3.2.6.9 d) calculate eto and if it is later than 1st contact end time, ignore
         adjusted_start_time = max(curr_time, route.hops[0].start)
         applicable_backlog_p = 0  # todo: this the current route.next_node queue status now for p or higher
