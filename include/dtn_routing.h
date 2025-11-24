@@ -34,6 +34,7 @@ typedef struct Contact_Info {
 typedef struct Routing_Function {
     DTN_Module* parent_module;
     char* routing_algorithm_name;
+    u32_t base_time;
     
     Contact_Info* contact_list_head;
 } Routing_Function;

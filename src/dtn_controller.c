@@ -408,6 +408,7 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
     Stored_Packet_Entry *packet = storage->packet_list_head;
     while (packet != NULL)
     {
+        Stored_Packet_Entry *next_packet = packet->next; //NO ESTÀ AL NODE 1
         const struct ip6_hdr *ip6hdr = (const struct ip6_hdr *)packet->p->payload;
         ip6_addr_t dest = packet->original_dest;
 
@@ -480,6 +481,6 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
         }
         dtn_controller_remove_tracking(controller, &dest);
         dtn_storage_free_retrieved_entry_struct(packet);
-        packet = packet->next;
+        packet = next_packet; //NO ESTÀ AL NODE 1
     }
 }

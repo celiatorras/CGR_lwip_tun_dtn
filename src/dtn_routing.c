@@ -37,6 +37,7 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
         routing->parent_module = parent;
         routing->routing_algorithm_name = "Contact Graph Routing";
         routing->contact_list_head = NULL; 
+        routing->base_time = sys_now();
         
         printf("DTN Routing Function created. Mode: %s\n", routing->routing_algorithm_name);
         
@@ -149,8 +150,7 @@ int dtn_routing_remove_contact(Routing_Function* routing, const ip6_addr_t* node
     return 0; // Contact not found
 }
 
-// modified the print message to include both nodes, funciton used only to print any changes in the contacts' state
-// it returns true if any contact has become active
+// no chanches needed, funciton used only to print any changes in the contacts' state
 bool dtn_routing_update_contacts(Routing_Function* routing) {
     if (!routing) return false;
     
@@ -173,7 +173,7 @@ bool dtn_routing_update_contacts(Routing_Function* routing) {
         // Contact has changed state?
         bool is_active = (current_time >= contact->start_time_ms && 
                           current_time <= contact->end_time_ms);
-        
+                          
         if (is_active != last_active_states[contact_index]) {
             char node_addr_str[IP6ADDR_STRLEN_MAX], next_hop_str[IP6ADDR_STRLEN_MAX];
             ip6addr_ntoa_r(&contact->node_addr, node_addr_str, sizeof(node_addr_str));
@@ -309,8 +309,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     }
     
     // to use python functions we need time in double format
-    u32_t current_time = sys_now(); // in milliseconds
-    double curr_time = ((double) current_time)/1000;
+    double curr_time_load = ((double)routing->base_time)/1000;
 
     PyObject *py_cp_load = PyObject_GetAttrString(pModule, "cp_load");
     PyObject *py_cgr_yen = PyObject_GetAttrString(pModule, "cgr_yen");
@@ -320,7 +319,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     // cp_load
     PyObject *args_load = PyTuple_New(3);
     PyTuple_SetItem(args_load, 0, PyUnicode_FromString("py_cgr/contact_plans/cgr_tutorial_1.txt"));
-    PyTuple_SetItem(args_load, 1, PyFloat_FromDouble(curr_time));
+    PyTuple_SetItem(args_load, 1, PyFloat_FromDouble(curr_time_load));
     PyTuple_SetItem(args_load, 2, PyLong_FromLong(MAX_LENGTH));
     PyObject *contact_plan = PyObject_CallObject(py_cp_load, args_load);
     if (!contact_plan) {
@@ -345,6 +344,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     // cgr_yen
     long curr_node_id = ipv6_to_nodeid(CURR_NODE_ADDR);
     long dest_node_id = ipv6_to_nodeid(dst_s);
+    double curr_time = ((double)sys_now())/1000;
 
     fprintf(stderr, "[DBG] call cgr_yen: curr_node_id=%ld dest_node_id=%ld curr_time=%f\n",
         curr_node_id, dest_node_id, curr_time);
@@ -394,7 +394,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     long deadline = hoplim_val*10000;                      //multiplying factor to transform to lifetime?
     uint8_t tc = (uint8_t)((v_tc_fl_val >> 20) & 0xFF); // traffic class (8 bits) 
     uint8_t dscp = (uint8_t)(tc >> 2);              // DSCP = TC[7:2] (6 bits)
-
+    
     PyObject *args_pkt = PyTuple_New(5);
     PyTuple_SetItem(args_pkt, 0, PyFloat_FromDouble(curr_time));
     PyTuple_SetItem(args_pkt, 1, PyLong_FromLong(dest_node_id));
@@ -409,7 +409,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         Py_DECREF(contact_plan);
         Py_DECREF(pModule);
         Py_Finalize();
-        return 0;
+    return 0;
     }
     PyObject *repr_pkt = PyObject_Repr(ipv6pkt);
     if (repr_pkt) {
@@ -442,7 +442,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
             long n = PyList_Size(candidates);
             fprintf(stderr, "[DBG] candidates length: %ld\n", n);
             for (long i = 0; i < n; ++i) {
-                PyObject *it = PyList_GetItem(candidates, i);
+                PyObject *it = PyList_GetItem(candidates, i); // borrowed
                 PyObject *repr_it = PyObject_Repr(it);
                 const char *si = PyUnicode_AsUTF8(repr_it);
                 fprintf(stderr, "[DBG] candidate[%ld] repr: %s\n", i, si? si : "<NULL>");
@@ -480,10 +480,6 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         if (pNextNode) {
             if (pNextNode == Py_None) {
                 printf("Next hop: None\n");
-                Py_DECREF(candidates);
-                Py_DECREF(pModule);
-                Py_Finalize();
-                return 0;
             } else if (PyLong_Check(pNextNode)) {
                 long next_node = PyLong_AsLong(pNextNode);
                 ip6_addr_t next_ip;
@@ -494,9 +490,17 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
                         printf("Next hop ipv6: %s\n", next_ip_s);
                     } else {
                         fprintf(stderr, "Failed to stringify next_ip for node %ld\n", next_node);
+                        Py_DECREF(candidates);
+                        Py_DECREF(pModule);
+                        Py_Finalize();
+                        return 0;
                     }
                 } else {
                     fprintf(stderr, "No mapping nodeid->ipv6 for node %ld\n", next_node);
+                    Py_DECREF(candidates);
+                    Py_DECREF(pModule);
+                    Py_Finalize();
+                    return 0;
                 }
 
             } else {
@@ -518,7 +522,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
         Py_Finalize();
         return 0;
     }
-
+    
     Py_DECREF(candidates);
     Py_DECREF(pModule);
     Py_Finalize();
@@ -692,7 +696,7 @@ int dtn_routing_load_contacts(Routing_Function* routing, const char* filename) {
         #endif
 
         // Afegim el contacte: node_addr = 'to', next_hop = 'from'
-        int added = dtn_routing_add_contact(routing, &to_ip6, &from_ip6, start_ms + sys_now(), end_ms + sys_now(), true);
+        int added = dtn_routing_add_contact(routing, &to_ip6, &from_ip6, start_ms + routing->base_time, end_ms + routing->base_time, true);
         if (added) loaded++;
     }
 
