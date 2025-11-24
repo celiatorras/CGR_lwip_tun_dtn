@@ -31,8 +31,6 @@
 #include "lwip/sys.h"
 #include "dtn_custody.h"
 
-//funció de construcció del controlador
-//inicialitza cada entrada de la taula forwarding_attempts
 DTN_Controller *dtn_controller_create(DTN_Module *parent)
 {
     DTN_Controller *controller = (DTN_Controller *)malloc(sizeof(DTN_Controller));
@@ -58,7 +56,6 @@ DTN_Controller *dtn_controller_create(DTN_Module *parent)
     return controller;
 }
 
-//destructor del controlador
 void dtn_controller_destroy(DTN_Controller *controller)
 {
     if (!controller)
@@ -89,7 +86,7 @@ static bool should_attempt_forward(DTN_Controller *controller, const ip6_addr_t 
             if (ip6_addr_cmp(dest_addr, &tracking_addr))
             {
 #endif
-                u32_t time_since_last_attempt = current_time - controller->forwarding_attempts[i].last_attempt_time; //mirar quant de temps fa des de l'últim intent
+                u32_t time_since_last_attempt = current_time - controller->forwarding_attempts[i].last_attempt_time;
 
                 if (time_since_last_attempt >= FORWARDING_RETRY_DELAY_MS)
                 {
@@ -128,7 +125,6 @@ static bool should_attempt_forward(DTN_Controller *controller, const ip6_addr_t 
         }
     }
 
-    //si és una destinació que no estava a la llista l'afageix 
     for (int i = 0; i < MAX_DESTINATIONS; i++)
     {
         if (!controller->forwarding_attempts[i].is_valid)
@@ -141,12 +137,11 @@ static bool should_attempt_forward(DTN_Controller *controller, const ip6_addr_t 
         }
     }
 
-    return true; //sino passa cap de les condicions sí que val la pena intentar enviar-lo
+    return true;
 }
 
 void dtn_controller_remove_tracking(DTN_Controller *controller, const ip6_addr_t *dest_addr)
 {
-    //si controller o dest_addr són NUll no fa res la funció
     if (!controller || !dest_addr)
     {
         return;
@@ -158,8 +153,7 @@ void dtn_controller_remove_tracking(DTN_Controller *controller, const ip6_addr_t
         {
             ip6_addr_t tracking_addr = controller->forwarding_attempts[i].destination;
 
-#if LWIP_IPV6_SCOPES //Enable support for IPv6 address scopes
-            //NO ENTENC AIXÒ
+#if LWIP_IPV6_SCOPES
             ip6_addr_t dest_nozone = *dest_addr;
             ip6_addr_set_zone(&dest_nozone, IP6_NO_ZONE);
             ip6_addr_set_zone(&tracking_addr, IP6_NO_ZONE);
@@ -177,7 +171,6 @@ void dtn_controller_remove_tracking(DTN_Controller *controller, const ip6_addr_t
     }
 }
 
-//processa els missatges ICMP amb la funció dtn_icmpv6_process
 int dtn_controller_process_icmpv6(DTN_Controller *controller, struct pbuf *p, struct netif *inp_netif)
 {
     if (!p || !controller || !controller->parent_module)
@@ -188,7 +181,6 @@ int dtn_controller_process_icmpv6(DTN_Controller *controller, struct pbuf *p, st
     return dtn_icmpv6_process(p, inp_netif);
 }
 
-//MAIN FUNCTION
 void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p, struct netif *inp_netif)
 {
     if (!p || !controller || !controller->parent_module ||
@@ -215,7 +207,6 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         return;
     }
 
-    //changed
     ip6_addr_t temp_src_addr, temp_dest_addr;
     u32_t temp_v_tc_fl;
     u16_t temp_plen;
@@ -225,6 +216,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
     memcpy(&temp_v_tc_fl, &ip6hdr->_v_tc_fl, sizeof(u32_t));
     memcpy(&temp_plen, &ip6hdr->_plen, sizeof(u16_t));
     memcpy(&temp_hoplim, &ip6hdr->_hoplim, sizeof(u8_t));
+
 
     Routing_Function *routing = controller->parent_module->routing;
     Storage_Function *storage = controller->parent_module->storage;
@@ -315,11 +307,9 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
     bool is_dtn_dest = dtn_routing_is_dtn_destination(routing, &temp_dest_addr);
     if (is_dtn_dest)
     {
-        //demana si hi ha un contacte actiu i si és possible retorna el next hop a next_hop_ip
         ip6_addr_t next_hop_ip;
         int contact_available = dtn_routing_get_dtn_next_hop(routing, &temp_v_tc_fl, &temp_plen, &temp_hoplim, &temp_dest_addr, &next_hop_ip);
 
-        //hi ha contacte disponible
         if (contact_available)
         {
             // Create a copy of the packet for DTN-PCK-FORWARDED message
@@ -408,7 +398,6 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
     Stored_Packet_Entry *packet = storage->packet_list_head;
     while (packet != NULL)
     {
-        Stored_Packet_Entry *next_packet = packet->next; //NO ESTÀ AL NODE 1
         const struct ip6_hdr *ip6hdr = (const struct ip6_hdr *)packet->p->payload;
         ip6_addr_t dest = packet->original_dest;
 
@@ -481,6 +470,6 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
         }
         dtn_controller_remove_tracking(controller, &dest);
         dtn_storage_free_retrieved_entry_struct(packet);
-        packet = next_packet; //NO ESTÀ AL NODE 1
+        packet = packet->next;
     }
 }
