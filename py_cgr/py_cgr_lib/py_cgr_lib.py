@@ -202,7 +202,7 @@ class Route:
 
 
 class ipv6_packet:
-    def __init__(self, time_now, dst, size, deadline, priority):
+    def __init__(self, time_now, dst, size, deadline, priority, sender):
         # ipv6_packet primary block parameters
         self.dst = dst
         self.size = size
@@ -217,7 +217,7 @@ class ipv6_packet:
         self.deadline = deadline + time_now 
         
         # computed parameters
-        #self.sender = sender
+        self.sender = sender
         #self.evc = max(size*1.03, 100)
         
         print(f"[PYDBG] ipv6_paquet created: dst={self.dst} size={self.size} deadline={self.deadline} priority={self.priority}", flush=True, file=sys.stderr)
@@ -511,12 +511,18 @@ def fwd_candidate(curr_time, curr_node, contact_plan, ipv6_packet, routes, exclu
 
     debug = False
 
+    return_to_sender = False
     candidate_routes = []
 
     for route in routes:
 
         # 3.2.5.2 a) preparation: backward propagation
-        # not implemented
+        if not return_to_sender:
+            if route.next_node is ipv6_packet.sender:
+                excluded_nodes.append(route.next_node)
+                if debug:
+                    print("preparation: next node is sender", route.next_node)
+                continue
 
         # 3.2.6.9 a)
         if route.best_delivery_time > ipv6_packet.deadline:

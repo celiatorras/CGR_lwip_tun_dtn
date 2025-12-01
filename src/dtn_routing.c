@@ -250,7 +250,7 @@ bool dtn_routing_is_dtn_destination(Routing_Function* routing, const ip6_addr_t*
 - current node (const previously defined)
 - destination address
 */
-int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_t* plen, u8_t* hoplim, ip6_addr_t* dest_ip, ip6_addr_t* next_hop_ip) {
+int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_t* plen, u8_t* hoplim, ip6_addr_t* dest_ip, ip6_addr_t* sender_ip, ip6_addr_t* next_hop_ip) {
     if (!routing || !v_tc_fl || !plen || !hoplim || !dest_ip || !next_hop_ip) {
         fprintf(stderr, "DTN Routing: Invalid arguments to get_dtn_next_hop.\n");
         return 0;
@@ -278,13 +278,18 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     }
 
     char dst_s[INET6_ADDRSTRLEN];  //we need the destination node in string format to convert into node id
+    char sender_s[INET6_ADDRSTRLEN];
 
     if (ip6_addr_to_str(dest_ip, dst_s, sizeof(dst_s)) != 0) { 
         fprintf(stderr, "ip6_addr_to_str dest failed\n"); return 1; 
     }
+    if (ip6_addr_to_str(sender_ip, sender_s, sizeof(sender_s)) != 0) { 
+        fprintf(stderr, "ip6_addr_to_str sender failed\n"); return 1; 
+    }
 
     printf("local: %s\n", CURR_NODE_ADDR);
     printf("dst: %s\n", dst_s);
+    printf("sender: %s\n", sender_s)
 
     Py_Initialize();
     if (!Py_IsInitialized()) {
@@ -394,13 +399,16 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     long deadline = hoplim_val*10000;                      //multiplying factor to transform to lifetime?
     uint8_t tc = (uint8_t)((v_tc_fl_val >> 20) & 0xFF); // traffic class (8 bits) 
     uint8_t dscp = (uint8_t)(tc >> 2);              // DSCP = TC[7:2] (6 bits)
+
+    long sender_node_id = ipv6_to_nodeid(sender_s);
     
-    PyObject *args_pkt = PyTuple_New(5);
+    PyObject *args_pkt = PyTuple_New(6);
     PyTuple_SetItem(args_pkt, 0, PyFloat_FromDouble(curr_time));
     PyTuple_SetItem(args_pkt, 1, PyLong_FromLong(dest_node_id));
     PyTuple_SetItem(args_pkt, 2, PyLong_FromLong(plen_val));
     PyTuple_SetItem(args_pkt, 3, PyLong_FromLong(deadline));
     PyTuple_SetItem(args_pkt, 4, PyLong_FromLong(dscp));
+    PyTuple_SetItem(args_pkt, 5, PyLong_FromLong(sender_node_id));
     PyObject *ipv6pkt = PyObject_CallObject(py_ipv6_packet, args_pkt);
     if (!ipv6pkt) {
         fprintf(stderr, "[ERR] ipv6_packet constructor returned NULL\n");

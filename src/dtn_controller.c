@@ -207,15 +207,19 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         return;
     }
 
-    ip6_addr_t temp_src_addr, temp_dest_addr;
+    ip6_addr_t temp_src_addr, temp_dest_addr, temp_dest_sender;
     u32_t temp_v_tc_fl;
     u16_t temp_plen;
     u8_t  temp_hoplim;
-    memcpy(&temp_src_addr, &ip6hdr->src, sizeof(ip6_addr_t)); //not used
+    memcpy(&temp_src_addr, &ip6hdr->src, sizeof(ip6_addr_t));
     memcpy(&temp_dest_addr, &ip6hdr->dest, sizeof(ip6_addr_t));
     memcpy(&temp_v_tc_fl, &ip6hdr->_v_tc_fl, sizeof(u32_t));
     memcpy(&temp_plen, &ip6hdr->_plen, sizeof(u16_t));
     memcpy(&temp_hoplim, &ip6hdr->_hoplim, sizeof(u8_t));
+
+    if (!dtn_extract_custodian_option(p, &temp_dest_sender)) {
+        memcpy(&temp_dest_sender, &temp_src_addr, sizeof(ip6_addr_t));
+    }
 
     Routing_Function *routing = controller->parent_module->routing;
     Storage_Function *storage = controller->parent_module->storage;
@@ -276,6 +280,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         }
     }
 
+    
     if (is_for_this_lwip_stack)
     {
         // Create a copy of the packet for DTN-PCK-RECEIVED
@@ -302,12 +307,15 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
         return;
     }
 
+    
+
     // Not for the local stack
     bool is_dtn_dest = dtn_routing_is_dtn_destination(routing, &temp_dest_addr);
+
     if (is_dtn_dest)
     {
         ip6_addr_t next_hop_ip;
-        int contact_available = dtn_routing_get_dtn_next_hop(routing, &temp_v_tc_fl, &temp_plen, &temp_hoplim, &temp_dest_addr, &next_hop_ip);
+        int contact_available = dtn_routing_get_dtn_next_hop(routing, &temp_v_tc_fl, &temp_plen, &temp_hoplim, &temp_dest_addr, &temp_dest_sender, &next_hop_ip);
 
         if (contact_available)
         {
@@ -370,8 +378,7 @@ void dtn_controller_process_incoming(DTN_Controller *controller, struct pbuf *p,
                 return;
             }
         }
-    }
-    else
+    }else
     {
         err_t err = raw_socket_send_ipv6(p, &temp_dest_addr) == 0 ? ERR_OK : ERR_IF;
         if (err != ERR_OK)
@@ -404,12 +411,18 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
         u32_t v_tc_fl;
         u16_t plen;
         u8_t hoplim;
+        ip6_addr_t temp_src_addr, temp_dest_sender;
+        memcpy(&temp_src_addr, &ip6hdr->src, sizeof(ip6_addr_t));
         memcpy(&v_tc_fl, &ip6hdr->_v_tc_fl, sizeof(u32_t));
         memcpy(&plen, &ip6hdr->_plen, sizeof(u16_t));
         memcpy(&hoplim, &ip6hdr->_hoplim, sizeof(u8_t));
 
+        if (!dtn_extract_custodian_option(p, &temp_dest_sender)) {
+        memcpy(&temp_dest_sender, &temp_src_addr, sizeof(ip6_addr_t));
+    }
+
         ip6_addr_t next_hop_ip;
-        int contact_available = dtn_routing_get_dtn_next_hop(routing, &v_tc_fl, &plen, &hoplim, &dest, &next_hop_ip);
+        int contact_available = dtn_routing_get_dtn_next_hop(routing, &v_tc_fl, &plen, &hoplim, &dest, &sender, &next_hop_ip);
 
         if (!contact_available) {
             dtn_storage_free_retrieved_entry_struct(packet);
@@ -470,7 +483,6 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
         }
         dtn_controller_remove_tracking(controller, &dest);
         dtn_storage_free_retrieved_entry_struct(packet);
-        dtn_storage_remove_packet_from_disk(storage, packet->filename);
         packet = next_packet;
     }
 }
