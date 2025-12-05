@@ -633,11 +633,6 @@ void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pb
     u8_t* orig_payload_start = orig_first_8_bytes + orig_payload_offset;
     u8_t actual_payload_bytes = 8 - orig_payload_offset;
     
-    if (orig_payload_offset >= 8) {
-        printf("DTN Storage: Hop-by-hop header too large (%u), cannot verify payload\n", orig_payload_offset);
-        dtn_storage_delete_packet_by_ip_header(storage, orig_ip6hdr);
-        return;
-    }
     if (actual_payload_bytes <= 0) {
         printf("DTN Storage: Not enough payload data after headers, falling back to basic matching\n");
         dtn_storage_delete_packet_by_ip_header(storage, orig_ip6hdr);
@@ -654,8 +649,7 @@ void dtn_storage_delete_packet_by_icmp_data(Storage_Function* storage, struct pb
             struct ip6_hdr* stored_ip6hdr = (struct ip6_hdr*)current->p->payload;
             
             // 1. Check src/dst addresses
-            if (memcmp(&stored_ip6hdr->src, &orig_ip6hdr->src, 16) == 0 &&
-                memcmp(&stored_ip6hdr->dest, &orig_ip6hdr->dest, 16) == 0) {
+            if (memcmp(&stored_ip6hdr->src, &orig_ip6hdr->src, 16) == 0) {
                 
                 // 2. Check next header protocol
                 u8_t stored_nexth = stored_ip6hdr->_nexth;

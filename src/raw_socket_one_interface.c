@@ -78,11 +78,6 @@ int raw_socket_send_ipv6(struct pbuf *p, const ip6_addr_t *dest_addr) {
     int sent_bytes;
     char buf[2048];
 
-    /*if (!p || !dest_addr) {
-        fprintf(stderr, "Invalid arguments to raw_socket_send_ipv6\n");
-        return -1;
-    }*/
-
     if (p->tot_len > (int)sizeof(buf)) {
         fprintf(stderr, "Packet too large for raw socket buffer\n");
         return -1;

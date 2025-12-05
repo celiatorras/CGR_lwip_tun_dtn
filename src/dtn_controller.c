@@ -454,6 +454,7 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
             if (p_copy && pbuf_copy(p_copy, p_to_fwd) == ERR_OK) 
             {
                 dtn_icmpv6_send_pck_received(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
+                //dtn_icmpv6_send_pck_delivered(netif_out, p_copy, ICMP6_CODE_DTN_NO_INFO);
             }
             pbuf_free(p_copy);
 
@@ -481,8 +482,6 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
             pbuf_free(p_to_fwd);
 
         }
-        dtn_controller_remove_tracking(controller, &dest);
-        dtn_storage_free_retrieved_entry_struct(packet);
         packet = next_packet;
     }
 }

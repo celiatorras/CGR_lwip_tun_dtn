@@ -156,7 +156,7 @@ bool dtn_routing_update_contacts(Routing_Function* routing) {
     
     bool ret = false;
     static u32_t last_check_time = 0;
-    static bool last_active_states[15] = {false};
+    static bool last_active_states[100] = {false};
     static int contact_index = 0;
     
     u32_t current_time = sys_now(); //time when the computer has started
@@ -169,7 +169,7 @@ bool dtn_routing_update_contacts(Routing_Function* routing) {
     Contact_Info* contact = routing->contact_list_head;
     contact_index = 0;
     
-    while (contact != NULL && contact_index < 10) { 
+    while (contact != NULL && contact_index < 100) { 
         // Contact has changed state?
         bool is_active = (current_time >= contact->start_time_ms && 
                           current_time <= contact->end_time_ms);
@@ -441,6 +441,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     PyTuple_SetItem(args_fwd, 4, routes);
     PyTuple_SetItem(args_fwd, 5, excluded_nodes);
     PyObject *candidates = PyObject_CallObject(py_fwd_candidate, args_fwd);
+    
     if (candidates) {
     PyObject *repr_c = PyObject_Repr(candidates);
     const char *sc = PyUnicode_AsUTF8(repr_c);
@@ -485,7 +486,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     if (PyList_Check(candidates) && PyList_Size(candidates) > 0) {
         PyObject *first = PyList_GetItem(candidates, 0); /* borrowed reference */
         PyObject *pNextNode = PyObject_GetAttrString(first, "next_node"); /* new ref or NULL */
-        if (pNextNode) {
+        if (pNextNode) {+
             if (pNextNode == Py_None) {
                 printf("Next hop: None\n");
             } else if (PyLong_Check(pNextNode)) {
@@ -554,19 +555,15 @@ int ip6_addr_to_str(const ip6_addr_t *a, char *buf, size_t buflen) {
 
 long ipv6_to_nodeid(const char *ip6) {
 
-    // Node 0 (id = 1)
-    if (strcmp(ip6, "fd00:01::1") == 0) return 01;
-    if (strcmp(ip6, "fd00:1::1") == 0) return 01;
+    if (strcmp(ip6, "fd00:01::1") == 0) return 1;
+    if (strcmp(ip6, "fd00:1::1") == 0) return 1;
 
-    // Node 1 (id = 2)
     if (strcmp(ip6, "fd00:01::2") == 0) return 10;
     if (strcmp(ip6, "fd00:12::1") == 0) return 12;
 
-    // Node 2 (id = 3)
     if (strcmp(ip6, "fd00:12::2") == 0) return 21;
     if (strcmp(ip6, "fd00:23::2") == 0) return 23;
 
-    // Node 3 (id = 4)
     if (strcmp(ip6, "fd00:23::3") == 0) return 32;
 
     return -1;
@@ -576,7 +573,7 @@ int nodeid_to_ipv6(long node_id, ip6_addr_t *out) {
 
     const char *addr_txt = NULL;
     switch (node_id) {
-        case 01: addr_txt = "fd00:01::1"; break;
+        case 1: addr_txt = "fd00:01::1"; break;
         case 10: addr_txt = "fd00:01::2"; break;
         case 12: addr_txt = "fd00:12::1"; break;
         case 21: addr_txt = "fd00:12::2"; break;
