@@ -10,7 +10,7 @@ The implementation uses a modified version of the LwIP (Lightweight IP) stack in
 
 - **Store-and-Forward**: Persistent packet storage for handling network disruptions
 - **Custom ICMPv6 Signaling**: DTN status reporting (RECEIVED, FORWARDED, DELIVERED, DELETED)
-- **Contact Graph Routing**: Schedule-aware routing for intermittent connectivity
+- **Contact Graph Routing**: Routing mechanism for intermittent connectivity
 - **Custody Transfer**: Optional hop-by-hop reliability mechanism
 - **Modular Architecture**: Separate controller, routing and storage functions
 
