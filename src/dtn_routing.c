@@ -310,9 +310,6 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
     long dest_node_id = ipv6_to_nodeid(dst_s);
     double curr_time = ((double)sys_now())/1000;
 
-    fprintf(stderr, "[DBG] call cgr_yen: curr_node_id=%ld dest_node_id=%ld curr_time=%f\n",
-        curr_node_id, dest_node_id, curr_time);
-
     PyObject *args_yen = PyTuple_New(6);
     PyTuple_SetItem(args_yen, 0, PyFloat_FromDouble(curr_time));
     PyTuple_SetItem(args_yen, 1, PyLong_FromLong(curr_node_id));
@@ -451,11 +448,9 @@ long ipv6_to_nodeid(const char *ip6) {
 
     // Node 0 (id = 1)
     if (strcmp(ip6, "fd00:01::1") == 0) return 01;
-    if (strcmp(ip6, "fd00:1::1") == 0) return 01;
 
     // Node 1 (id = 2)
     if (strcmp(ip6, "fd00:01::2") == 0) return 10;
-    if (strcmp(ip6, "fd00:1::2") == 0) return 10;
     if (strcmp(ip6, "fd00:12::1") == 0) return 12;
 
     // Node 2 (id = 3)
