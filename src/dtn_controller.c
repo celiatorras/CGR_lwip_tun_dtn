@@ -445,18 +445,19 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
             u32_t v_tc_fl;
             u16_t plen;
             u8_t hoplim;
-            ip6_addr_t src_addr, sender_ip;
+            ip6_addr_t src_addr, sender_ip, retrieved_dest_nozone;
             
             memcpy(&v_tc_fl, &ip6hdr->_v_tc_fl, sizeof(u32_t));
             memcpy(&plen, &ip6hdr->_plen, sizeof(u16_t));
             memcpy(&hoplim, &ip6hdr->_hoplim, sizeof(u8_t));
             memcpy(&src_addr, &ip6hdr->src, sizeof(ip6_addr_t));
+            memcpy(&retrieved_dest_nozone, &ip6hdr->dest, sizeof(ip6_addr_t));
 
             if (!dtn_extract_custodian_option(entry->p, &sender_ip)) {
                 memcpy(&sender_ip, &src_addr, sizeof(ip6_addr_t));
             }
             ip6_addr_t next_hop_ip;
-            int contact_available = dtn_routing_get_dtn_next_hop(routing, &v_tc_fl, &plen, &hoplim, &entry->original_dest, &sender_ip, &next_hop_ip);
+            int contact_available = dtn_routing_get_dtn_next_hop(routing, &v_tc_fl, &plen, &hoplim, &retrieved_dest_nozone, &sender_ip, &next_hop_ip);
             if (contact_available && is_next_hop_active_contact(routing, &next_hop_ip))
             {
                 char node_addr_str[IP6ADDR_STRLEN_MAX];
@@ -470,7 +471,7 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
                     bool is_for_this_lwip_stack = false;
                     ip6_addr_t local_lwip_addr_1, local_lwip_addr_2;
                     if (ip6addr_aton("fd00:01::2", &local_lwip_addr_1)) {
-                        ip6_addr_t dest_nozone = dest;
+                        ip6_addr_t dest_nozone = retrieved_dest_nozone;
             #if LWIP_IPV6_SCOPES
                         ip6_addr_set_zone(&dest_nozone, IP6_NO_ZONE);
                         ip6_addr_set_zone(&local_lwip_addr_1, IP6_NO_ZONE);
@@ -480,7 +481,7 @@ void dtn_controller_attempt_forward_stored(DTN_Controller *controller, struct ne
                         }
                     }
                     if (ip6addr_aton("fd00:12::1", &local_lwip_addr_2)) {
-                        ip6_addr_t dest_nozone = dest;
+                        ip6_addr_t dest_nozone = retrieved_dest_nozone;
             #if LWIP_IPV6_SCOPES
                         ip6_addr_set_zone(&dest_nozone, IP6_NO_ZONE);
                         ip6_addr_set_zone(&local_lwip_addr_2, IP6_NO_ZONE);

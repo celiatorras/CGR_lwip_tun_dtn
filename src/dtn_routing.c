@@ -29,7 +29,6 @@
 #define CURR_NODE_ADDR "fd00:01::2"
 #define MAX_LENGTH 5000
 
-// necessary changes made
 Routing_Function* dtn_routing_create(DTN_Module* parent) {
     Routing_Function* routing = (Routing_Function*)malloc(sizeof(Routing_Function));
     if (routing) {
@@ -53,7 +52,6 @@ Routing_Function* dtn_routing_create(DTN_Module* parent) {
     return routing;
 }
 
-// no changes needed
 void dtn_routing_destroy(Routing_Function* routing) {
     if (!routing) return;
     
@@ -70,7 +68,6 @@ void dtn_routing_destroy(Routing_Function* routing) {
     free(routing);
 }
 
-// no changes needed, function used to load contacts into contact_list
 int dtn_routing_add_contact(Routing_Function* routing, 
                           const ip6_addr_t* node_addr, 
                           const ip6_addr_t* next_hop,
@@ -79,14 +76,12 @@ int dtn_routing_add_contact(Routing_Function* routing,
                           bool is_dtn_node) {
     if (!routing || !node_addr || !next_hop) return 0;
     
-    // Create new contact
     Contact_Info* new_contact = (Contact_Info*)malloc(sizeof(Contact_Info));
     if (!new_contact) {
         perror("Failed to allocate memory for Contact_Info");
         return 0;
     }
     
-    // Fill in contact details
     ip6_addr_copy(new_contact->node_addr, *node_addr);
     ip6_addr_copy(new_contact->next_hop, *next_hop);
     new_contact->start_time_ms = start_time_ms;
@@ -94,7 +89,6 @@ int dtn_routing_add_contact(Routing_Function* routing,
     new_contact->is_dtn_node = is_dtn_node;
     new_contact->next = NULL;
     
-    // Add to list
     if (routing->contact_list_head == NULL) {
         routing->contact_list_head = new_contact;
     } else {
@@ -169,7 +163,6 @@ bool dtn_routing_update_contacts(Routing_Function* routing) {
     contact_index = 0;
     
     while (contact != NULL && contact_index < 100) { 
-        // Contact has changed state?
         bool is_active = (current_time >= contact->start_time_ms && 
                           current_time <= contact->end_time_ms);
                           
@@ -292,7 +285,7 @@ int dtn_routing_get_dtn_next_hop(Routing_Function* routing, u32_t* v_tc_fl, u16_
 
     // cp_load
     PyObject *args_load = PyTuple_New(3);
-    PyTuple_SetItem(args_load, 0, PyUnicode_FromString("py_cgr/contact_plans/cgr_tutorial_1.txt"));
+    PyTuple_SetItem(args_load, 0, PyUnicode_FromString("py_cgr/contact_plans/cgr_tutorial_Simulation.txt"));
     PyTuple_SetItem(args_load, 1, PyFloat_FromDouble(curr_time_load));
     PyTuple_SetItem(args_load, 2, PyLong_FromLong(MAX_LENGTH));
     PyObject *contact_plan = PyObject_CallObject(py_cp_load, args_load);
@@ -448,9 +441,11 @@ long ipv6_to_nodeid(const char *ip6) {
 
     // Node 0 (id = 1)
     if (strcmp(ip6, "fd00:01::1") == 0) return 01;
+    if (strcmp(ip6, "fd00:1::1") == 0) return 01;
 
     // Node 1 (id = 2)
     if (strcmp(ip6, "fd00:01::2") == 0) return 10;
+    if (strcmp(ip6, "fd00:1::1") == 0) return 10;
     if (strcmp(ip6, "fd00:12::1") == 0) return 12;
 
     // Node 2 (id = 3)
